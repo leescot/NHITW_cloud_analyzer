@@ -1,5 +1,5 @@
 # 健保雲端資料整理 Chrome Extension
-Write by Cladue on 2025/01/16
+Write by Claude on 2025/01/16
 
 這是一個專門用於整理健保雲端資料的 Chrome 擴充功能，可以協助醫療人員更有效率地處理和查看雲端藥歷和檢驗報告資料。
 
