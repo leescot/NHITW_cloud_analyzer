@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>健保雲端分析器設定</title>
+    <meta charset="UTF-8">
+    <style>
+        body {
+            padding: 20px;
+            font-family: Arial, sans-serif;
+        }
+        .settings-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2196F3;
+            margin-bottom: 20px;
+        }
+        .setting-group {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #d3efff;
+            border-radius: 4px;
+        }
+        .setting-group h2 {
+            color: #2196F3;
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+        label {
+            display: block;
+            margin-bottom: 10px;
+        }
+        select {
+            padding: 8px;
+            border: 1px solid #d3efff;
+            border-radius: 4px;
+            width: 200px;
+        }
+        .save-button {
+            background-color: #2196F3;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .save-button:hover {
+            background-color: #1976D2;
+        }
+        .save-status {
+            margin-top: 10px;
+            color: #4CAF50;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="settings-container">
+        <h1>健保雲端分析器設定</h1>
+        
+        <div class="setting-group">
+            <h2>系統設定</h2>
+            <label style="display: flex; align-items: center; margin-bottom: 15px;">
+                <input type="checkbox" id="autoProcess" style="margin-right: 8px;">
+                自動讀取資料 (特定頁面自動跳出視窗)
+            </label>
+            <!-- 新增自動翻頁設定 -->
+            <label style="display: flex; align-items: center; margin-bottom: 15px;">
+                <input type="checkbox" id="enableAutoPaging" style="margin-right: 8px;">
+                開啟自動翻頁功能
+            </label>
+            <!-- 最大頁數設定 -->
+            <label style="margin-bottom: 15px; display: block;">
+                最大翻頁數量：
+                <select id="maxPageCount" style="margin-top: 8px; width: 100%; padding: 6px;">
+                    <option value="1">1 頁</option>
+                    <option value="3">3 頁</option>
+                    <option value="5">5 頁</option>
+                    <option value="10">10 頁</option>
+                </select>
+            </label>
+        </div>
+
+        <div class="setting-group">
+            <h2>藥歷設定</h2>
+            <label style="display: flex; align-items: center; margin-bottom: 15px;">
+                <input type="checkbox" id="showGenericName" style="margin-right: 8px;">
+                顯示藥品學名
+            </label>
+            <label style="display: flex; align-items: center; margin-bottom: 15px;">
+                <input type="checkbox" id="simplifyMedicineName" style="margin-right: 8px;">
+                藥物商品名精簡顯示
+            </label>
+            <label style="margin-bottom: 15px; display: block;">
+                複製藥品格式：
+                <select id="copyFormat" style="margin-top: 8px; width: 100%; padding: 6px;">
+                    <option value="none">關閉複製功能</option>
+                    <option value="nameVertical">複製商品名(直式)</option>
+                    <option value="nameWithDosageVertical">複製商品名+使用量(直式)</option>
+                    <option value="nameHorizontal">複製商品名(橫式)</option>
+                    <option value="nameWithDosageHorizontal">複製商品名+使用量(橫式)</option>
+                </select>
+            </label>
+        </div>
+
+        <div class="setting-group">
+            <h2>檢驗設定</h2>
+            <label style="display: flex; align-items: center; margin-bottom: 15px;">
+                <input type="checkbox" id="showLabUnit" style="margin-right: 8px;">
+                顯示檢驗報告單位
+            </label>
+            <label style="display: flex; align-items: center; margin-bottom: 15px;">
+                <input type="checkbox" id="highlightAbnormalLab" style="margin-right: 8px;">
+                異常檢驗值變色顯示
+            </label>
+            <label style="display: flex; align-items: center; margin-bottom: 15px;">
+                <input type="checkbox" id="showLabReference" style="margin-right: 8px;">
+                顯示檢驗參考值
+            </label>
+            <label style="margin-bottom: 15px; display: block;">
+                檢驗值顯示方式：
+                <select id="labDisplayFormat" style="margin-top: 8px; width: 100%; padding: 6px;">
+                    <option value="vertical">直式顯示</option>
+                    <option value="horizontal">橫式顯示</option>
+                </select>
+            </label>
+            <label style="display: flex; align-items: center; margin-bottom: 15px;">
+                <input type="checkbox" id="enableLabAbbrev" style="margin-right: 8px;">
+                啟動常見檢驗項目縮寫
+            </label>
+            <!-- 新增自定義縮寫管理按鈕 -->
+            <button id="manageLabAbbrev" class="secondary-button" style="margin-bottom: 15px;">
+                管理檢驗項目縮寫
+            </button>
+        </div>
+
+        <div class="setting-group">
+            <h2>介面設定</h2>
+            <div style="margin-bottom: 15px;">
+                <h3 style="color: #666; font-size: 16px; margin-bottom: 10px;">字型大小</h3>
+                <label>
+                    標題字型大小：
+                    <select id="titleFontSize">
+                        <option value="12">小 (12px)</option>
+                        <option value="16">中 (16px)</option>
+                        <option value="20">大 (20px)</option>
+                    </select>
+                </label>
+                <label>
+                    內容字型大小：
+                    <select id="contentFontSize">
+                        <option value="12">小 (12px)</option>
+                        <option value="14">中 (14px)</option>
+                        <option value="16">大 (16px)</option>
+                    </select>
+                </label>
+                <label>
+                    備註字型大小：
+                    <select id="noteFontSize">
+                        <option value="10">小 (10px)</option>
+                        <option value="12">中 (12px)</option>
+                        <option value="14">大 (14px)</option>
+                    </select>
+                </label>
+            </div>
+
+            <div>
+                <h3 style="color: #666; font-size: 16px; margin-bottom: 10px;">視窗大小</h3>
+                <label>
+                    視窗寬度：
+                    <select id="windowWidth">
+                        <option value="300">窄 (300px)</option>
+                        <option value="400">中 (400px)</option>
+                        <option value="500">寬 (500px)</option>
+                        <option value="600">特寬 (600px)</option>
+                    </select>
+                </label>
+                <label>
+                    視窗高度：
+                    <select id="windowHeight">
+                        <option value="60">適中 (60%)</option>
+                        <option value="70">較高 (70%)</option>
+                        <option value="80">高 (80%)</option>
+                        <option value="90">特高 (90%)</option>
+                    </select>
+                </label>
+            </div>
+        </div>
+
+        <button id="saveButton" class="save-button">儲存設定</button>
+        <div id="saveStatus" class="save-status">設定已儲存！</div>
+    </div>
+    <script src="labAbbreviations.js"></script> 
+    <script src="settings.js"></script>          
+</body>
+</html>
+</body>
+</html>

@@ -1,0 +1,22 @@
+.medicine-names-display {
+    margin: 20px;
+    padding: 15px;
+    background-color: #ffffff;
+    border: 1px solid #d3efff;
+    border-radius: 5px;
+}
+
+.medicine-names-display h3 {
+    color: #2196F3;
+    margin-bottom: 10px;
+}
+
+.medicine-names-display ul {
+    list-style-type: none;
+    padding: 0;
+}
+
+.medicine-names-display li {
+    padding: 5px 0;
+    border-bottom: 1px solid #d3efff;
+}
