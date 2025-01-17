@@ -1,8 +1,8 @@
 {
     "manifest_version": 3,
     "name": "健保雲端資料整理",
-    "version": "1.0.15",
-    "description": "lab縮寫",
+    "version": "1.0.12",
+    "description": "image auto show",
     "icons": {
         "16": "icon16.png",
         "48": "icon48.png",
@@ -27,6 +27,7 @@
                 "medicineProcessor.js",
                 "labProcessor.js",
                 "labAbbreviations.js",
+                "imageProcessor.js",
                 "autoPaging.js",
                 "content.js"
             ],

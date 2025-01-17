@@ -13,7 +13,8 @@ const medicineProcessor = window.medicineProcessor;
 // 定義要自動處理的URL
 const AUTO_PROCESS_URLS = {
     MEDICINE: 'https://medcloud2.nhi.gov.tw/imu/IMUE1000/IMUE0008',
-    LAB: 'https://medcloud2.nhi.gov.tw/imu/IMUE1000/IMUE0060'
+    LAB: 'https://medcloud2.nhi.gov.tw/imu/IMUE1000/IMUE0060',
+    IMAGE: 'https://medcloud2.nhi.gov.tw/imu/IMUE1000/IMUE0130'
 };
 
 // 檢查當前URL是否需要自動處理
@@ -22,7 +23,6 @@ function shouldAutoProcess() {
     return Object.values(AUTO_PROCESS_URLS).includes(currentUrl);
 }
 
-// 等待表格載入的函數
 // 修改 waitForTables 函數
 function waitForTables(callback, maxAttempts = 20) {
     let attempts = 0;
@@ -31,19 +31,21 @@ function waitForTables(callback, maxAttempts = 20) {
         const tables = document.getElementsByTagName('table');
         const currentUrl = window.location.href;
         
-        // 確保只在藥品頁面檢查相關表格
-        if (currentUrl !== AUTO_PROCESS_URLS.MEDICINE) {
-            console.log('不在藥品頁面，停止檢查表格');
-            return;
-        }
+        let hasDataTable = false;
 
-        const hasDataTable = Array.from(tables).some(table => {
-            const headerText = table.innerText.toLowerCase();
-            return (headerText.includes('藥品') || 
-                    headerText.includes('用藥') || 
-                    headerText.includes('medicine')) &&
-                    table.querySelector('tbody tr td') !== null;
-        });
+        if (currentUrl === AUTO_PROCESS_URLS.MEDICINE) {
+            hasDataTable = Array.from(tables).some(table => {
+                const headerText = table.innerText.toLowerCase();
+                return (headerText.includes('藥品') || 
+                        headerText.includes('用藥') || 
+                        headerText.includes('medicine')) &&
+                        table.querySelector('tbody tr td') !== null;
+            });
+        } else if (currentUrl === AUTO_PROCESS_URLS.IMAGE) {
+            hasDataTable = Array.from(tables).some(table => {
+                return table.querySelector('tbody tr td') !== null;
+            });
+        }
 
         if (tables.length > 0 && hasDataTable) {
             console.log('找到已載入資料的表格，開始處理');
@@ -425,7 +427,6 @@ testButton.onmouseout = () => {
 testButton.appendChild(icon);
 
 // 按鈕點擊處理
-// 修改按鈕點擊處理部分
 testButton.onclick = () => {
     console.log('按鈕被點擊，檢查頁面類型');
     const currentUrl = window.location.href;
@@ -436,6 +437,13 @@ testButton.onclick = () => {
             window.labProcessor.handleButtonClick();
         } else {
             console.error('檢驗報告處理器尚未載入');
+        }
+    } else if (currentUrl.includes('IMUE0130')) {
+        console.log('當前為影像及病理頁面');
+        if (window.imageProcessor) {
+            window.imageProcessor.handleButtonClick();
+        } else {
+            console.error('影像及病理處理器尚未載入');
         }
     } else {
         console.log('當前為藥品頁面');
@@ -462,6 +470,13 @@ function autoProcessPage() {
         console.log('檢測到檢驗報告頁面，等待表格載入');
         if (window.labProcessor) {
             window.labProcessor.initialize();
+        }
+    } else if (currentUrl === AUTO_PROCESS_URLS.IMAGE) {
+        console.log('檢測到影像報告頁面，等待表格載入');
+        if (window.imageProcessor) {
+            waitForTables(() => {
+                window.imageProcessor.handleButtonClick();
+            });
         }
     } else if (currentUrl === AUTO_PROCESS_URLS.MEDICINE) {
         console.log('檢測到藥品頁面，等待表格載入');
@@ -490,14 +505,13 @@ function checkPageReady(callback, maxAttempts = 20) {
 
         if (attempts < maxAttempts) {
             attempts++;
-            const isLabPage = window.location.href === AUTO_PROCESS_URLS.LAB;
+            const currentUrl = window.location.href;
             
-            if (isLabPage) {
+            if (currentUrl === AUTO_PROCESS_URLS.LAB) {
                 console.log('檢查檢驗報告頁面元件載入狀態');
                 if (window.labProcessor && window.labAbbreviationManager) {
                     console.log('檢驗報告處理器和縮寫管理器都已載入');
                     try {
-                        // 確保縮寫管理器已初始化
                         const abbrevResult = await window.labAbbreviationManager.loadAbbreviations();
                         console.log('縮寫初始化結果:', abbrevResult);
                         callback();
@@ -507,8 +521,15 @@ function checkPageReady(callback, maxAttempts = 20) {
                     }
                 } else {
                     console.log(`等待元件載入... 嘗試次數: ${attempts}`);
-                    console.log('labProcessor 存在:', !!window.labProcessor);
-                    console.log('labAbbreviationManager 存在:', !!window.labAbbreviationManager);
+                    setTimeout(check, 500);
+                }
+            } else if (currentUrl === AUTO_PROCESS_URLS.IMAGE) {
+                console.log('檢查影像報告頁面元件載入狀態');
+                if (window.imageProcessor) {
+                    console.log('影像報告處理器已載入');
+                    callback();
+                } else {
+                    console.log(`等待影像處理器載入... 嘗試次數: ${attempts}`);
                     setTimeout(check, 500);
                 }
             } else {
@@ -526,7 +547,7 @@ function checkPageReady(callback, maxAttempts = 20) {
     };
 
     check();
-};
+}
 
 // 修改初始化自動處理函數
 function initAutoProcess() {
@@ -596,7 +617,9 @@ new MutationObserver(() => {
     if (url !== lastUrl) {
         lastUrl = url;
         console.log('檢測到 URL 變化，新 URL:', url);
-        if (url.includes('IMUE0008') || url.includes('IMUE0060')) {
+        if (url.includes('IMUE0008') || 
+            url.includes('IMUE0060') || 
+            url.includes('IMUE0130')) {
             console.log('進入目標頁面，初始化按鈕');
             setTimeout(() => {
                 initButtons();
@@ -618,12 +641,14 @@ setTimeout(() => {
 
 document.addEventListener('DOMContentLoaded', () => {
     console.log('DOM 載入完成，檢查當前頁面');
-    if (window.location.href.includes('IMUE0008') || 
-        window.location.href.includes('IMUE0060')) {
+    const currentUrl = window.location.href;
+    if (currentUrl.includes('IMUE0008') || 
+        currentUrl.includes('IMUE0060') || 
+        currentUrl.includes('IMUE0130')) {
         console.log('當前在目標頁面，初始化按鈕');
         initButtons();
     }
-    if (window.location.href.includes('IMUE0060')) {
+    if (currentUrl.includes('IMUE0060')) {
         console.log('檢驗報告頁面，初始化縮寫管理器');
         window.labAbbreviationManager.loadAbbreviations().then(result => {
             console.log('縮寫管理器初始化完成:', result);

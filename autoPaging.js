@@ -81,7 +81,7 @@ const autoPagingHandler = {
             
             Object.assign(button.style, {
                 position: 'fixed',
-                top: '25px',
+                top: '85px',
                 right: '200px',
                 zIndex: '999999',
                 backgroundColor: '#2196F3',
