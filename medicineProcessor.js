@@ -1,256 +1,606 @@
+const medicineProcessor = {
+    // 事件監聽相關
+    listenToPageChanges() {
+        const paginationContainer = document.querySelector('.dataTables_paginate');
+        if (paginationContainer) {
+            // 使用 MutationObserver 監控表格內容變化
+            const tableObserver = new MutationObserver((mutations) => {
+                console.log('檢測到表格內容變化，重新處理資料');
+                const tables = this.inspectTables();
+                if (tables.length > 0) {
+                    tables.forEach(table => {
+                        const data = this.extractMedicineData(table);
+                        if (data) {
+                            this.displayResults(data);
+                        }
+                    });
+                }
+            });
 
-// 監聽分頁按鈕點擊事件
-function listenToPageChanges() {
-    const paginationContainer = document.querySelector('.dataTables_paginate');
-    if (paginationContainer) {
-        // console.log('找到分頁控制區域');
+            // 監控表格內容
+            const tableBody = document.querySelector('table tbody');
+            if (tableBody) {
+                tableObserver.observe(tableBody, {
+                    childList: true,
+                    subtree: true
+                });
+            }
+
+            // 監聽分頁按鈕點擊
+            paginationContainer.addEventListener('click', () => {
+                setTimeout(() => {
+                    console.log('分頁按鈕被點擊，重新處理資料');
+                    const tables = this.inspectTables();
+                    if (tables.length > 0) {
+                        tables.forEach(table => {
+                            const data = this.extractMedicineData(table);
+                            if (data) {
+                                this.displayResults(data);
+                            }
+                        });
+                    }
+                }, 500);
+            });
+        }
+    },
+
+    // ATC5 相關功能
+    checkATC5Column(table) {
+        const headers = Array.from(table.querySelectorAll('th'))
+            .map(th => th.textContent.trim());
+        return headers.includes('ATC5代碼');
+    },
+
+    showATC5Warning() {
+        const warningDiv = document.createElement('div');
+        warningDiv.style.cssText = `
+            position: fixed;
+            top: 90px;
+            right: 20px;
+            background-color: #fff3cd;
+            color: #856404;
+            padding: 12px;
+            border-radius: 4px;
+            border: 1px solid #ffeeba;
+            z-index: 10000;
+            font-size: 14px;
+        `;
+        warningDiv.textContent = '請先開啟「ATC5代碼」欄位';
+        document.body.appendChild(warningDiv);
+
+        setTimeout(() => warningDiv.remove(), 5000);
+    },
+
+    getATC5Color(atc5Code, settings) {
+        if (!settings.enableATC5Coloring || !atc5Code) return null;
         
-        // 使用 MutationObserver 監控表格內容變化
-        const tableObserver = new MutationObserver((mutations) => {
-            console.log('檢測到表格內容變化，重新處理資料');
-            const tables = inspectAllTables();
+        console.log('正在檢查 ATC5 顏色:', {  // 添加日誌
+            code: atc5Code,
+            settings: settings
+        });
+
+        const { atc5Colors } = settings;
+
+        // 使用前綴匹配來檢查 ATC5 代碼
+        const checkPrefix = (codeList) => {
+            return codeList.some(prefix => atc5Code.startsWith(prefix));
+        };
+
+        if (checkPrefix(atc5Colors.red)) return '#ffebee';
+        if (checkPrefix(atc5Colors.blue)) return '#e3f2fd';
+        if (checkPrefix(atc5Colors.green)) return '#e8f5e9';
+        
+        return null;
+    },
+
+    // 劑量計算相關
+    calculatePerDosage(dosage, frequency, days) {
+        if (!dosage || !frequency || !days) return '';
+        
+        const frequencyMap = {
+            'QD': 1, 'BID': 2, 'TID': 3, 'QID': 4,
+            'Q2H': 12, 'Q4H': 6, 'Q6H': 4, 'Q8H': 3,
+            'Q12H': 2, 'HS': 1, 'PRN': 1, 'DAILY': 1
+        };
+
+        const freqMatch = frequency.toUpperCase().match(/QD|BID|TID|QID|Q2H|Q4H|Q6H|Q8H|Q12H|HS|PRN|DAILY/);
+        if (!freqMatch && !frequency.includes('需要時')) {
+            console.log('無法識別的頻次:', frequency);
+            return 'SPECIAL';
+        }
+
+        let totalDoses;
+        const freq = freqMatch ? freqMatch[0] : 'PRN';
+        
+        if (frequency.includes('QOD') || frequency.includes('Q2D')) {
+            totalDoses = Math.ceil(parseInt(days) / 2);
+        } else if (frequency.includes('TIW')) {
+            totalDoses = Math.ceil(parseInt(days) / 7) * 3;
+        } else if (frequency.includes('BIW')) {
+            totalDoses = Math.ceil(parseInt(days) / 7) * 2;
+        } else if (frequency.includes('QW')) {
+            totalDoses = Math.ceil(parseInt(days) / 7);
+        } else if (frequency.includes('PRN') || frequency.includes('需要時')) {
+            return 'SPECIAL';
+        } else {
+            totalDoses = parseInt(days) * (frequencyMap[freq] || 1);
+        }
+
+        const totalDosage = parseFloat(dosage);
+        const singleDose = totalDosage / totalDoses;
+
+        const threshold = 0.24;
+        const validUnits = [0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0];
+        
+        if (singleDose < threshold) {
+            return 'SPECIAL';
+        }
+
+        const roundedDose = Math.round(singleDose * 4) / 4;
+
+        if (!validUnits.includes(roundedDose)) {
+            return 'SPECIAL';
+        }
+
+        return roundedDose.toString();
+    },
+
+    // 藥品名稱處理
+    simplifyMedicineName(name) {
+        let simplifiedName = name;
+
+        // 處理 TAB. 相關變體
+        const tabletRegex = /\b(tablets?|f\.?c\.?\s*tablets?|film[\s-]?coated\s*tablets?|prolonged release tablets?)\b/gi;
+        simplifiedName = simplifiedName.replace(tabletRegex, '');
+
+        // 處理其他變體和規格
+        simplifiedName = simplifiedName
+            .replace(/\b(ENTERIC-MICROENCAPSULATED|CAPSULES)\b/gi, '')
+            .replace(/\b(capsules?|cap\.?)\b/gi, 'CAP.')
+            .replace(/(\d+(?:\.\d+)?(?:\s*\/\s*\d+(?:\.\d+)?){0,2})\s*mg\b(?!\s*\/)/gi, (match, p1) => 
+                `(${p1.replace(/\s+/g, '')})`)
+            .replace(/\s+(TAB\.|CAP\.)\s+/, ' ')
+            .replace(/\([^)]*箔[^)]*\)/g, '')
+            .replace(/\s+/g, ' ')
+            .replace(/"/g, '')
+            .trim();
+
+        // 處理複合劑量
+        const complexDoseRegex = /\((\d+(?:\.\d+)?(?:\/\d+(?:\.\d+)?){0,2})\)\s*(?:MG|MCG|G|ML)(?!\s*\/)/i;
+        const doseMatch = simplifiedName.match(complexDoseRegex);
+        if (doseMatch) {
+            const dose = doseMatch[1].replace(/\s*\/\s*/g, '/');
+            simplifiedName = simplifiedName.replace(complexDoseRegex, '').trim() + ' (' + dose + ')';
+        }
+
+        return simplifiedName;
+    },
+
+    // 格式化相關
+    formatDiagnosis(date, source, diagnosis, diagnosisCode) {
+        const formattedSource = source.split('門診')[0];
+        const formattedDiagnosis = diagnosis && diagnosisCode ? 
+            `(${diagnosis}${diagnosisCode})` : '';
+        return `${date} ${formattedSource} ${formattedDiagnosis}`;
+    },
+
+    formatMedicineList(medicines, format) {
+        const getMedicineText = (med) => {
+            const perDosage = this.calculatePerDosage(med.dosage, med.usage, med.days);
+            let dosageText = perDosage === 'SPECIAL' ? `總量${med.dosage}` : `${perDosage}#`;
+            const daysText = med.days && med.days !== '0' ? ` ${med.days}d` : '';
+            
+            switch (format) {
+                case 'nameVertical':
+                    return med.name;
+                case 'nameWithDosageVertical':
+                    return `${med.name} ${dosageText} ${med.usage}${daysText}`;
+                case 'nameHorizontal':
+                    return med.name;
+                case 'nameWithDosageHorizontal':
+                    return `${med.name} ${dosageText} ${med.usage}${daysText}`;
+                default:
+                    return med.name;
+            }
+        };
+
+        const medicineTexts = medicines.map(med => getMedicineText(med));
+        return format.includes('Horizontal') ? 
+            medicineTexts.join(', ') : 
+            medicineTexts.join('\n');
+    },
+
+    // 在 medicineProcessor 物件中新增 processMedicineDisplay 方法
+
+    processMedicineDisplay(medicine, showGenericName = true, simplifyName = true) {
+        const perDosage = this.calculatePerDosage(medicine.dosage, medicine.usage, medicine.days);
+        let displayText;
+
+        if (perDosage === 'SPECIAL') {
+            displayText = `總量${medicine.dosage}`;
+        } else {
+            displayText = `${perDosage}#`;
+        }
+        
+        const daysText = medicine.days && medicine.days !== '0' ? ` ${medicine.days}d` : '';
+        const medicineName = simplifyName ? this.simplifyMedicineName(medicine.name) : medicine.name;
+        
+        return `
+            <div style="margin-bottom: 8px;">
+                <div>${medicineName} ${displayText} ${medicine.usage}${daysText}</div>
+                ${showGenericName && medicine.ingredient ? 
+                    `<div style="color: #666; margin-top: 2px;">
+                        ${medicine.ingredient}
+                    </div>` : ''}
+            </div>
+        `;
+    },
+
+    // 新增 handleCopy 方法（這個方法在之前的代碼中被引用但未定義）
+    async handleCopy(date, source, medicines, settings) {
+        const hospitalName = source.split('門診')[0];
+        const processedMedicines = medicines.map(med => ({
+            ...med,
+            name: settings.simplifyMedicineName ? 
+                this.simplifyMedicineName(med.name) : 
+                med.name
+        }));
+        
+        const text = `${date} ${hospitalName}\n${this.formatMedicineList(processedMedicines, settings.copyFormat)}`;
+        await navigator.clipboard.writeText(text);
+    },
+
+    // 在 medicineProcessor 物件中新增
+    displayResults(groupedData, userSettings = {}) {
+        // 使用傳入的 userSettings，不使用預設值
+        const settings = userSettings;
+
+        // 創建主容器
+        const displayDiv = document.createElement('div');
+        displayDiv.id = 'medicine-names-list';
+        displayDiv.style.cssText = `
+            position: fixed;
+            top: 90px;
+            right: 20px;
+            background-color: #ffffff;
+            border: 3px solid #d3efff;
+            padding: 20px;
+            border-radius: 10px;
+            height: ${settings.windowHeight}vh;
+            width: ${settings.windowWidth}px;
+            z-index: 10000;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+        `;
+
+        // 創建標題區域
+        const headerDiv = document.createElement('div');
+        headerDiv.style.cssText = `
+            background-color: #d3efff;
+            color: #2196F3;
+            padding: 12px 15px;
+            margin: -20px -20px 15px -20px;
+            border-radius: 7px 7px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        `;
+
+        const titleH3 = document.createElement('h3');
+        titleH3.textContent = '西醫用藥 用藥記錄';
+        titleH3.style.cssText = `
+            margin: 0;
+            font-size: ${settings.titleFontSize}px;
+            padding: 0;
+            font-weight: bold;
+        `;
+
+        const closeButton = document.createElement('button');
+        closeButton.textContent = '×';
+        closeButton.style.cssText = `
+            background: none;
+            border: none;
+            color: #2196F3;
+            cursor: pointer;
+            font-size: 20px;
+            padding: 0 0 3px 0;
+            line-height: 1;
+        `;
+        closeButton.onclick = () => displayDiv.remove();
+
+        headerDiv.appendChild(titleH3);
+        headerDiv.appendChild(closeButton);
+
+        // 創建內容區域
+        const contentDiv = document.createElement('div');
+        contentDiv.style.cssText = `
+            flex-grow: 1;
+            overflow-y: auto;
+            padding-right: 5px;
+        `;
+
+        // 處理資料顯示
+        Object.values(groupedData)
+            .sort((a, b) => b.date.localeCompare(a.date))
+            .forEach(group => {
+                const dateBlock = document.createElement('div');
+                dateBlock.style.cssText = 'margin-bottom: 20px;';
+
+                // 日期標題區塊
+                const headerBlock = document.createElement('div');
+                headerBlock.style.cssText = `
+                    font-weight: bold;
+                    color: #2196F3;
+                    font-size: ${settings.titleFontSize}px;
+                    padding-bottom: 5px;
+                    margin-bottom: 10px;
+                    border-bottom: 2px solid #d3efff;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                `;
+
+                const dateText = document.createElement('span');
+                dateText.textContent = this.formatDiagnosis(
+                    group.date,
+                    group.source,
+                    group.diagnosis,
+                    group.diagnosisCode
+                );
+
+                const copyButton = document.createElement('button');
+                copyButton.textContent = '複製';
+                copyButton.dataset.date = group.date;
+                copyButton.style.cssText = `
+                    background-color: #2196F3;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    padding: 2px 8px;
+                    cursor: pointer;
+                    font-size: 12px;
+                    margin-left: 10px;
+                    display: ${settings.copyFormat === 'none' ? 'none' : 'block'};
+                `;
+
+                copyButton.onclick = () => {
+                    this.handleCopy(group.date, group.source, group.medicines, settings)
+                        .then(() => {
+                            copyButton.textContent = '已複製！';
+                            setTimeout(() => {
+                                copyButton.textContent = '複製';
+                            }, 2000);
+                        });
+                };
+
+                headerBlock.appendChild(dateText);
+                headerBlock.appendChild(copyButton);
+
+                // 藥品列表
+                const medicinesList = document.createElement('div');
+                medicinesList.style.cssText = `
+                    padding-left: 10px;
+                    font-size: ${settings.contentFontSize}px;
+                `;
+
+                group.medicines.forEach(med => {
+                    const medDiv = document.createElement('div');
+                    medDiv.style.cssText = 'margin-bottom: 8px;';
+        
+                    // 處理 ATC5 顏色
+                    if (settings.enableATC5Coloring && med.atc5Code) {
+                        const backgroundColor = this.getATC5Color(med.atc5Code, settings);
+                        if (backgroundColor) {
+                            medDiv.style.backgroundColor = backgroundColor;
+                            medDiv.style.padding = '5px';
+                            medDiv.style.borderRadius = '4px';
+                            medDiv.style.marginBottom = '5px';
+                        }
+                    }
+        
+                    const medHtml = this.processMedicineDisplay(
+                        med,
+                        settings.showGenericName,
+                        settings.simplifyMedicineName
+                    );
+                    medDiv.innerHTML = medHtml;
+        
+                    // 調整備註文字大小
+                    const noteDiv = medDiv.querySelector('[style*="color: #666"]');
+                    if (noteDiv) {
+                        noteDiv.style.fontSize = `${settings.noteFontSize}px`;
+                    }
+        
+                    medicinesList.appendChild(medDiv);
+                });
+
+                dateBlock.appendChild(headerBlock);
+                dateBlock.appendChild(medicinesList);
+                contentDiv.appendChild(dateBlock);
+            });
+
+        // 清除舊視窗
+        const existingDiv = document.getElementById('medicine-names-list');
+        if (existingDiv) {
+            existingDiv.remove();
+        }
+
+        // 組裝並顯示視窗
+        displayDiv.appendChild(headerDiv);
+        displayDiv.appendChild(contentDiv);
+        document.body.appendChild(displayDiv);
+    },
+
+    // 檢查與分析表格
+    inspectTables() {
+        const allTables = document.getElementsByTagName('table');
+        console.log(`找到 ${allTables.length} 個表格`);
+
+        // 檢查每個表格基本資訊
+        Array.from(allTables).forEach((table, index) => {
+            console.log(`表格 #${index}:`, {
+                id: table.id,
+                className: table.className,
+                rowCount: table.rows.length,
+                preview: table.outerHTML.substring(0, 100)
+            });
+        });
+
+        // 找出可能包含藥品資訊的表格
+        const potentialTables = Array.from(allTables).filter(table => {
+            const headerText = table.innerText.toLowerCase();
+            return headerText.includes('藥品') || 
+                   headerText.includes('用藥') ||
+                   headerText.includes('medicine');
+        });
+
+        console.log('可能包含藥品資訊的表格數量:', potentialTables.length);
+        return potentialTables;
+    },
+
+    // 提取藥品資料
+    extractMedicineData(table) {
+        console.log('開始分析表格資料');
+        
+        // 提取表頭並建立欄位映射
+        const headers = Array.from(table.querySelectorAll('thead th'))
+            .map(th => th.textContent.trim());
+        console.log('表頭:', headers);
+
+        // 建立欄位映射
+        const columnMap = {
+            序號: headers.indexOf('項次'),
+            來源: headers.indexOf('來源'),
+            主診斷: headers.indexOf('主診斷'),
+            藥品名稱: headers.indexOf('藥品名稱'),
+            就醫日期: headers.indexOf('就醫日期'),
+            成分名稱: headers.indexOf('成分名稱'),
+            藥品用量: headers.indexOf('藥品用量'),
+            用法用量: headers.indexOf('用法用量'),
+            給藥日數: headers.indexOf('給藥日數'),
+            藥品規格量: headers.indexOf('藥品規格量'),
+            ATC5代碼: headers.indexOf('ATC5代碼')
+        };
+
+        // 驗證必要欄位
+        const requiredColumns = ['藥品名稱', '就醫日期', '來源', '用法用量'];
+        const missingColumns = requiredColumns.filter(col => columnMap[col] === -1);
+        
+        if (missingColumns.length > 0) {
+            console.error('缺少必要欄位:', missingColumns);
+            return null;
+        }
+
+        // 收集藥品資料
+        const rows = table.querySelectorAll('tbody tr');
+        console.log('表格行數:', rows.length);
+        
+        const medicineData = Array.from(rows).map(row => {
+            const cells = row.querySelectorAll('td');
+            if (cells.length === 0) return null;
+
+            // 獲取原始資料
+            const rawData = {
+                date: cells[columnMap.就醫日期]?.textContent.trim(),
+                source: cells[columnMap.來源]?.textContent.trim(),
+                diagnosis: cells[columnMap.主診斷]?.textContent.trim(),
+                medicineName: cells[columnMap.藥品名稱]?.textContent.trim(),
+                ingredient: cells[columnMap.成分名稱]?.textContent.trim(),
+                dosage: cells[columnMap.藥品用量]?.textContent.trim(),
+                usage: cells[columnMap.用法用量]?.textContent.trim(),
+                days: cells[columnMap.給藥日數]?.textContent.trim(),
+                spec: cells[columnMap.藥品規格量]?.textContent.trim(),
+                atc5Code: cells[columnMap.ATC5代碼]?.textContent.trim()
+            };
+
+            // 處理藥品規格量
+            const specText = rawData.spec;
+            const specMatch = specText.match(/(\d+)/);
+            const specNumber = specMatch ? specMatch[1] + '#' : '';
+
+            // 整理並返回資料
+            return {
+                date: rawData.date,
+                source: rawData.source.split('\n')[0], // 移除多餘的換行
+                diagnosis: rawData.diagnosis ? rawData.diagnosis.split('\n') : ['', ''],
+                medicineName: rawData.medicineName,
+                ingredient: rawData.ingredient,
+                dosage: rawData.dosage,
+                usage: rawData.usage,
+                days: rawData.days,
+                spec: specNumber,
+                atc5Code: rawData.atc5Code
+            };
+        }).filter(Boolean); // 移除空值
+
+        // 依照日期分組
+        const groupedData = medicineData.reduce((groups, med) => {
+            if (!groups[med.date]) {
+                groups[med.date] = {
+                    date: med.date,
+                    source: med.source,
+                    diagnosis: med.diagnosis[0] || '',
+                    diagnosisCode: med.diagnosis[1] || '',
+                    medicines: []
+                };
+            }
+
+            groups[med.date].medicines.push({
+                name: med.medicineName,
+                spec: med.spec,
+                dosage: med.dosage,
+                usage: med.usage,
+                days: med.days,
+                ingredient: med.ingredient,
+                atc5Code: med.atc5Code
+            });
+
+            return groups;
+        }, {});
+
+        console.log('分組後的藥品資料:', groupedData);
+        return groupedData;
+    },
+
+    // 初始化功能
+    initialize() {
+        chrome.storage.sync.get({
+            enableATC5Coloring: false,
+            atc5Colors: {
+                red: ['M01AA', 'M01AB', 'M01AC', 'M01AE', 'M01AG', 'M01AH'],
+                blue: [],
+                green: []
+            },
+            titleFontSize: '16',
+            contentFontSize: '14',
+            noteFontSize: '12',
+            windowWidth: '500',
+            windowHeight: '80',
+            showGenericName: false,
+            simplifyMedicineName: true,
+            copyFormat: 'nameWithDosageVertical'
+        }, (settings) => {
+            console.log('載入的設定:', settings);
+            const tables = this.inspectTables();
             if (tables.length > 0) {
-                tables.forEach((table, index) => {
-                    extractMedicineNames(table);
+                tables.forEach(table => {
+                    if (settings.enableATC5Coloring && !this.checkATC5Column(table)) {
+                        this.showATC5Warning();
+                        return;
+                    }
+                    const data = this.extractMedicineData(table);
+                    if (data) {
+                        this.displayResults(data, settings);
+                        this.listenToPageChanges();
+                    }
                 });
             }
         });
-
-        // 監控表格內容
-        const tableBody = document.querySelector('table tbody');
-        if (tableBody) {
-            tableObserver.observe(tableBody, {
-                childList: true,
-                subtree: true
-            });
-        }
-
-        // 監聽所有分頁按鈕的點擊事件
-        paginationContainer.addEventListener('click', (event) => {
-            // 延遲處理以等待表格更新
-            setTimeout(() => {
-                console.log('分頁按鈕被點擊，重新處理資料');
-                const tables = inspectAllTables();
-                if (tables.length > 0) {
-                    tables.forEach((table, index) => {
-                        extractMedicineNames(table);
-                    });
-                }
-            }, 500); // 給予足夠的時間讓表格更新
-        });
     }
-}
-
-// 計算每次服用量的函數
-function calculatePerDosage(dosage, frequency, days) {
-    // console.log('開始計算每次服用量:', { dosage, frequency, days });
-    
-    if (!dosage || !frequency || !days) return '';
-    
-    const frequencyMap = {
-        'QD': 1,
-        'BID': 2,
-        'TID': 3,
-        'QID': 4,
-        'Q2H': 12,
-        'Q4H': 6,
-        'Q6H': 4,
-        'Q8H': 3,
-        'Q12H': 2,
-        'HS': 1,
-        'PRN': 1,
-        'DAILY': 1
-    };
-
-    // 從用法用量字串中提取頻次
-    const freqMatch = frequency.toUpperCase().match(/QD|BID|TID|QID|Q2H|Q4H|Q6H|Q8H|Q12H|HS|PRN|DAILY/);
-    if (!freqMatch && !frequency.includes('需要時')) {
-        console.log('無法識別的頻次:', frequency);
-        return 'SPECIAL';
-    }
-
-    // 計算總次數
-    let totalDoses;
-    const freq = freqMatch ? freqMatch[0] : 'PRN';
-    
-    if (frequency.includes('QOD') || frequency.includes('Q2D')) {
-        totalDoses = Math.ceil(parseInt(days) / 2);
-    } else if (frequency.includes('TIW')) {
-        totalDoses = Math.ceil(parseInt(days) / 7) * 3;
-    } else if (frequency.includes('BIW')) {
-        totalDoses = Math.ceil(parseInt(days) / 7) * 2;
-    } else if (frequency.includes('QW')) {
-        totalDoses = Math.ceil(parseInt(days) / 7);
-    } else if (frequency.includes('PRN') || frequency.includes('需要時')) {
-        return 'SPECIAL';
-    } else {
-        totalDoses = parseInt(days) * (frequencyMap[freq] || 1);
-    }
-
-    // 計算單次劑量
-    const totalDosage = parseFloat(dosage);
-    const singleDose = totalDosage / totalDoses;
-
-    // console.log('計算結果:', {
-    //     totalDosage,
-    //     totalDoses,
-    //     singleDose
-    // });
-
-    // 設定閾值和有效單位
-    const threshold = 0.24;
-    const validUnits = [0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0];
-    
-    // 如果單次劑量小於閾值，返回特殊標記
-    if (singleDose < threshold) {
-        return 'SPECIAL';
-    }
-
-    // 四捨五入到最接近的 0.25
-    const roundedDose = Math.round(singleDose * 4) / 4;
-
-    // 檢查是否符合有效單位
-    if (!validUnits.includes(roundedDose)) {
-        return 'SPECIAL';
-    }
-
-    return roundedDose.toString();
-}
-
-// 簡化藥品名稱的函數
-function simplifyMedicineName(name) {
-    let simplifiedName = name;
-
-    // 處理 TAB. 相關的變體，包括 "Film Coated Tablets" 和其他變體
-    const tabletRegex = /\b(tablets?|f\.?c\.?\s*tablets?|film[\s-]?coated\s*tablets?|prolonged release tablets?)\b/gi;
-    simplifiedName = simplifiedName.replace(tabletRegex, '');
-
-    // 移除特定的描述性詞語
-    simplifiedName = simplifiedName.replace(/\b(ENTERIC-MICROENCAPSULATED|CAPSULES)\b/gi, '');
-
-    // 處理 CAP. 相關的變體
-    const capsuleRegex = /\b(capsules?|cap\.?)\b/gi;
-    simplifiedName = simplifiedName.replace(capsuleRegex, 'CAP.');
-
-    // 特殊處理 x/y/zmg, x/ymg 和 xmg 格式的劑量，但不處理 mg/xxx 的情況
-    const specialDoseRegex = /(\d+(?:\.\d+)?(?:\s*\/\s*\d+(?:\.\d+)?){0,2})\s*mg\b(?!\s*\/)/gi;
-    simplifiedName = simplifiedName.replace(specialDoseRegex, (match, p1) => {
-        // 移除劑量中的所有空格
-        const dose = p1.replace(/\s+/g, '');
-        return `(${dose})`;
-    });
-
-    // 將劑量信息移到藥品名稱之後，並處理複合劑量
-    const complexDoseRegex = /\((\d+(?:\.\d+)?(?:\/\d+(?:\.\d+)?){0,2})\)\s*(?:MG|MCG|G|ML)(?!\s*\/)/i;
-    const doseMatch = simplifiedName.match(complexDoseRegex);
-    if (doseMatch) {
-        let dose = doseMatch[1];
-        // 確保 "/" 之間沒有空格
-        dose = dose.replace(/\s*\/\s*/g, '/');
-        simplifiedName = simplifiedName.replace(complexDoseRegex, '').trim() + ' (' + dose + ')';
-    }
-
-    // 保留括號內的成分信息
-    const ingredientRegex = /\(([^)]+)\)/g;
-    const ingredients = [];
-    let match;
-    while ((match = ingredientRegex.exec(simplifiedName)) !== null) {
-        ingredients.push(match[0]);
-    }
-    simplifiedName = simplifiedName.replace(ingredientRegex, '').trim();
-    if (ingredients.length > 0) {
-        simplifiedName += ' ' + ingredients.join(' ');
-    }
-
-    // 移除多餘的空格和引號
-    simplifiedName = simplifiedName.replace(/\s+/g, ' ').replace(/"/g, '').trim();
-
-    // 移除 (鋁箔/膠箔) 這樣的包裝信息
-    simplifiedName = simplifiedName.replace(/\([^)]*箔[^)]*\)/g, '');
-
-    // 移除藥品名稱中可能殘留的 TAB. 或 CAP.
-    simplifiedName = simplifiedName.replace(/\s+(TAB\.|CAP\.)\s+/, ' ');
-
-    return simplifiedName.trim();
-}
-
-function formatDiagnosis(date, source, diagnosis, diagnosisCode) {
-    const formattedDate = date;
-    const formattedSource = source.split('門診')[0];
-    const formattedDiagnosis = diagnosis && diagnosisCode ? 
-        `(${diagnosis}${diagnosisCode})` : 
-        '';
-
-    return `${formattedDate} ${formattedSource} ${formattedDiagnosis}`;
-}
-
-function formatMedicineList(medicines, format) {
-    // 根據不同格式處理藥品清單
-    const getMedicineText = (med) => {
-        const perDosage = calculatePerDosage(med.dosage, med.usage, med.days);
-        let dosageText = '';
-        
-        if (perDosage === 'SPECIAL') {
-            dosageText = `總量${med.dosage}`;
-        } else {
-            dosageText = `${perDosage}#`;
-        }
-
-        const daysText = med.days && med.days !== '0' ? ` ${med.days}d` : '';
-        
-        switch (format) {
-            case 'nameVertical':
-                return med.name;
-            case 'nameWithDosageVertical':
-                return `${med.name} ${dosageText} ${med.usage}${daysText}`;
-            case 'nameHorizontal':
-                return med.name;
-            case 'nameWithDosageHorizontal':
-                return `${med.name} ${dosageText} ${med.usage}${daysText}`;
-            default:
-                return med.name;
-        }
-    };
-
-    const medicineTexts = medicines.map(med => getMedicineText(med));
-
-    // 根據格式決定是否使用橫式排列
-    if (format === 'nameHorizontal' || format === 'nameWithDosageHorizontal') {
-        return medicineTexts.join(', ');
-    } else {
-        return medicineTexts.join('\n');
-    }
-}
-
-
-function processMedicineDisplay(medicine, showGenericName = true, simplifyName = true) {
-    const perDosage = calculatePerDosage(medicine.dosage, medicine.usage, medicine.days);
-    let displayText;
-
-    if (perDosage === 'SPECIAL') {
-        displayText = `總量${medicine.dosage}`;
-    } else {
-        displayText = `${perDosage}#`;
-    }
-    
-    const daysText = medicine.days && medicine.days !== '0' ? ` ${medicine.days}d` : '';
-    const medicineName = simplifyName ? simplifyMedicineName(medicine.name) : medicine.name;
-    
-    return `
-        <div style="margin-bottom: 8px;">
-            <div>${medicineName} ${displayText} ${medicine.usage}${daysText}</div>
-            ${showGenericName ? 
-                `<div style="color: #666; margin-top: 2px;">
-                    ${medicine.ingredient || ''}
-                </div>` : ''}
-        </div>
-    `;
-}
-
-window.medicineProcessor = {
-    calculatePerDosage,
-    formatDiagnosis,
-    processMedicineDisplay,
-    formatMedicineList,
-    simplifyMedicineName
 };
+
+// 導出模組
+window.medicineProcessor = medicineProcessor;

@@ -108,6 +108,46 @@
         .secondary-button:hover {
             background-color: #e0e0e0;
         }
+        .atc5-color-dialog {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 10001;
+            width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .atc5-color-section {
+            margin-bottom: 20px;
+        }
+
+        .atc5-code-list {
+            margin: 10px 0;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+
+        .atc5-code-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .atc5-input-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
@@ -123,7 +163,7 @@
                 </label>
                 <label class="checkbox-label">
                     <input type="checkbox" id="enableAutoPaging">
-                    開啟自動翻頁功能
+                    開啟自動翻頁功能 (目前尚未開發完全)
                 </label>
                 <label>
                     最大翻頁數量：
@@ -156,6 +196,13 @@
                         <option value="nameWithDosageHorizontal">複製商品名+使用量(橫式)</option>
                     </select>
                 </label>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="enableATC5Coloring">
+                    開啟 ATC5碼 藥品提示功能 (表格欄位設定需新增「ATC5代碼」)
+                </label>
+                <button id="manageATC5Colors" class="secondary-button" style="display: none;">
+                    管理 ATC5碼 顏色對照
+                </button>
             </div>
 
             <div class="setting-group">
@@ -246,6 +293,7 @@
         <div id="saveStatus" class="save-status">設定已儲存！</div>
     </div>
     <script src="labAbbreviations.js"></script>
+    <script src="atc5ColorManager.js"></script>
     <script src="settings.js"></script>
 </body>
 </html>

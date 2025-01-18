@@ -344,7 +344,7 @@ const labProcessor = {
             displayDiv.id = 'lab-results-list';
             displayDiv.style.cssText = `
                 position: fixed;
-                top: 80px;
+                top: 90px;
                 right: 20px;
                 background-color: #ffffff;
                 border: 3px solid #d3efff;
