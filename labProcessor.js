@@ -4,17 +4,46 @@ console.log('載入檢驗報告處理模組');
 document.dispatchEvent(new Event('labProcessorReady'));
 
 const labProcessor = {
-    // 存儲當前的 observer
+    // 存儲當前的 observer 和資料
     currentObserver: null,
+    currentData: null,
 
-    // 清理函數
-    cleanup() {
-        if (this.currentObserver) {
-            this.currentObserver.disconnect();
-            this.currentObserver = null;
+    // 添加節流函數
+    throttle(func, limit) {
+        let waiting = false;
+        return function() {
+            if (!waiting) {
+                func.apply(this);
+                waiting = true;
+                setTimeout(function() {
+                    waiting = false;
+                }, limit);
+            }
         }
     },
 
+    // 修改後的清理函數
+    cleanup() {
+        console.log('執行檢驗報告清理作業');
+        
+        // 移除現有的觀察器
+        if (this.currentObserver) {
+            this.currentObserver.disconnect();
+            this.currentObserver = null;
+            console.log('已清理觀察器');
+        }
+
+        // 移除現有的顯示視窗
+        const existingDiv = document.getElementById('lab-results-list');
+        if (existingDiv) {
+            existingDiv.remove();
+            console.log('已移除現有顯示視窗');
+        }
+        
+        // 清理暫存的資料
+        this.currentData = null;
+    },
+    
     // 檢查所有表格
     inspectLabTables() {
         console.log('開始檢查檢驗報告表格');
@@ -360,6 +389,7 @@ const labProcessor = {
             `;
     
             // 建立標題區域
+            // 修改標題區域
             const headerDiv = document.createElement('div');
             headerDiv.style.cssText = `
                 background-color: #d3efff;
@@ -371,7 +401,8 @@ const labProcessor = {
                 justify-content: space-between;
                 align-items: center;
             `;
-    
+
+            // 建立左側標題
             const titleH3 = document.createElement('h3');
             titleH3.textContent = '檢驗報告記錄';
             titleH3.style.cssText = `
@@ -380,7 +411,22 @@ const labProcessor = {
                 padding: 0;
                 font-weight: bold;
             `;
-    
+
+            // 建立右側控制區域
+            const rightControls = document.createElement('div');
+            rightControls.style.cssText = `
+                display: flex;
+                align-items: center;
+                gap: 15px;
+            `;
+
+            // 添加分頁控制
+            if (window.nextPagingHandler) {
+                const pagingControls = window.nextPagingHandler.createPagingControls();
+                rightControls.appendChild(pagingControls);
+            }
+
+            // 關閉按鈕
             const closeButton = document.createElement('button');
             closeButton.textContent = '×';
             closeButton.style.cssText = `
@@ -393,9 +439,10 @@ const labProcessor = {
                 line-height: 1;
             `;
             closeButton.onclick = () => displayDiv.remove();
-    
+
             headerDiv.appendChild(titleH3);
-            headerDiv.appendChild(closeButton);
+            headerDiv.appendChild(rightControls);
+            rightControls.appendChild(closeButton);
     
             // 建立內容區域
             const contentDiv = document.createElement('div');
@@ -495,21 +542,21 @@ const labProcessor = {
     
                             itemSpan.style.color = settings.highlightAbnormalLab && isNormal === false ? '#FF0000' : '#000000';
     
-                            console.log('檢驗項目名稱:', item.testName);
+                            // console.log('檢驗項目名稱:', item.testName);
                             let displayName = item.testName;
                             if (settings.enableLabAbbrev && enabled) {
-                                console.log('開始處理縮寫:', {
-                                    itemTestName: item.testName,
-                                    abbreviations: Object.keys(abbreviations),
-                                    enabled: enabled,
-                                    settingEnabled: settings.enableLabAbbrev
-                                });
+                                // console.log('開始處理縮寫:', {
+                                //     itemTestName: item.testName,
+                                //     abbreviations: Object.keys(abbreviations),
+                                //     enabled: enabled,
+                                //     settingEnabled: settings.enableLabAbbrev
+                                // });
                                 const abbrev = abbreviations[item.testName];
-                                console.log('縮寫處理結果:', {
-                                    original: item.testName,
-                                    foundAbbrev: abbrev,
-                                    final: abbrev || item.testName
-                                });
+                                // console.log('縮寫處理結果:', {
+                                //     original: item.testName,
+                                //     foundAbbrev: abbrev,
+                                //     final: abbrev || item.testName
+                                // });
                                 displayName = abbrev || item.testName;
                             }
     
@@ -595,42 +642,34 @@ const labProcessor = {
     listenToPageChanges() {
         console.log('開始監聽檢驗報告頁面變化');
         
-        // 清理舊的監聽器
-        this.cleanup();
-        
-        // 監聽分頁按鈕
-        const paginationContainer = document.querySelector('.dataTables_paginate');
-        if (paginationContainer) {
-            // 使用防抖動來減少重複初始化
-            let debounceTimer;
-            const handlePagination = () => {
-                clearTimeout(debounceTimer);
-                debounceTimer = setTimeout(() => {
-                    this.initialize().catch(error => {
-                        console.error('更新檢驗報告時發生錯誤:', error);
-                    });
-                }, 500);
-            };
-            
-            paginationContainer.addEventListener('click', (event) => {
-                if (event.target.closest('.paginate_button')) {
-                    console.log('檢測到分頁按鈕點擊');
-                    handlePagination();
-                }
-            });
+        // 先清理現有的觀察器
+        if (this.currentObserver) {
+            this.currentObserver.disconnect();
+            this.currentObserver = null;
         }
 
-        // 監聽表格內容變化
         const tableBody = document.querySelector('table tbody');
         if (tableBody) {
-            this.currentObserver = new MutationObserver((mutations) => {
-                // 使用節流來減少日誌輸出
-                console.debug('檢測到表格內容變化');
-                this.initialize().catch(error => {
-                    console.error('更新檢驗報告時發生錯誤:', error);
-                });
+            // 使用節流的初始化函數
+            const throttledInit = this.throttle(() => {
+                // 只在資料表格內容變化時更新顯示視窗
+                const table = this.inspectLabTables();
+                if (table) {
+                    const newData = this.analyzeLabData(table);
+                    if (newData && JSON.stringify(newData) !== JSON.stringify(this.currentData)) {
+                        console.log('表格內容有變化，更新顯示');
+                        this.currentData = newData;
+                        this.displayLabResults(newData);
+                    }
+                }
+            }, 1000); // 設定 1 秒的節流時間
+
+            // 建立新的觀察器
+            this.currentObserver = new MutationObserver(() => {
+                throttledInit();
             });
 
+            // 開始觀察
             this.currentObserver.observe(tableBody, {
                 childList: true,
                 subtree: true
@@ -639,30 +678,26 @@ const labProcessor = {
     },
     
     // 修改 initialize 方法
-    initialize() {
-        console.debug('初始化檢驗報告處理功能'); // 改用 debug level
-        return new Promise((resolve, reject) => {
-            try {
-                const table = this.inspectLabTables();
-                if (table) {
-                    const data = this.analyzeLabData(table);
-                    if (data) {
-                        this.displayLabResults(data);
-                        this.listenToPageChanges();
-                        resolve(true);
-                    } else {
-                        console.debug('無法分析資料，稍後重試');
-                        setTimeout(() => this.initialize(), 1000);
-                    }
-                } else {
-                    console.debug('無法找到表格，稍後重試');
-                    setTimeout(() => this.initialize(), 1000);
+    async initialize() {
+        console.log('開始初始化檢驗報告處理功能');
+        this.cleanup();
+        
+        try {
+            const table = this.inspectLabTables();
+            if (table) {
+                const data = this.analyzeLabData(table);
+                if (data && Object.keys(data).length > 0) {
+                    this.currentData = data;
+                    this.displayLabResults(data);
+                    this.listenToPageChanges();
+                    return true;
                 }
-            } catch (error) {
-                console.error('初始化時發生錯誤:', error);
-                reject(error);
             }
-        });
+            return false;
+        } catch (error) {
+            console.error('初始化過程發生錯誤:', error);
+            return false;
+        }
     }
 };
 
@@ -721,13 +756,15 @@ const labValueProcessor = {
         return null;
     }
 };
-// 將完整的處理器掛載到 window 上
-window.labProcessor = labProcessor;
 
 // 觸發準備就緒事件
 setTimeout(() => {
     console.log('檢驗報告處理器初始化完成');
     document.dispatchEvent(new Event('labProcessorReady'));
 }, 0);
-// 確保所有方法都被正確掛載後再觸發事件
+
+// 將處理器掛載到 window 上
+window.labProcessor = labProcessor;
+
+// 觸發準備就緒事件
 document.dispatchEvent(new Event('labProcessorReady'));

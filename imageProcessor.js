@@ -1,6 +1,82 @@
 console.log('載入影像及病理處理模組');
 
 const imageProcessor = {
+    // 存儲當前的 observer 和資料
+    currentObserver: null,
+    currentData: null,
+
+    // 添加節流函數
+    throttle(func, limit) {
+        let waiting = false;
+        return function() {
+            if (!waiting) {
+                func.apply(this);
+                waiting = true;
+                setTimeout(function() {
+                    waiting = false;
+                }, limit);
+            }
+        }
+    },
+
+    // 清理函數
+    cleanup() {
+        console.log('執行影像報告清理作業');
+        
+        // 移除現有的觀察器
+        if (this.currentObserver) {
+            this.currentObserver.disconnect();
+            this.currentObserver = null;
+            console.log('已清理觀察器');
+        }
+
+        // 移除現有的顯示視窗
+        const existingDiv = document.getElementById('image-results-list');
+        if (existingDiv) {
+            existingDiv.remove();
+            console.log('已移除現有顯示視窗');
+        }
+        
+        // 清理暫存的資料
+        this.currentData = null;
+    },
+
+    // 監聽頁面變化
+    listenToPageChanges() {
+        // 先清理現有的觀察器
+        if (this.currentObserver) {
+            this.currentObserver.disconnect();
+            this.currentObserver = null;
+        }
+
+        const tableBody = document.querySelector('table tbody');
+        if (tableBody) {
+            // 使用節流的初始化函數
+            const throttledInit = this.throttle(() => {
+                const table = this.inspectImageTables();
+                if (table) {
+                    const newData = this.processImageData(table);
+                    if (newData && JSON.stringify(newData) !== JSON.stringify(this.currentData)) {
+                        console.log('表格內容有變化，更新顯示');
+                        this.currentData = newData;
+                        this.displayResults(newData);
+                    }
+                }
+            }, 1000);
+
+            // 建立新的觀察器
+            this.currentObserver = new MutationObserver(() => {
+                throttledInit();
+            });
+
+            // 開始觀察
+            this.currentObserver.observe(tableBody, {
+                childList: true,
+                subtree: true
+            });
+        }
+    },
+
     // 檢查表格並找到主要的檢查項目表格
     inspectImageTables() {
         console.log('開始檢查影像及病理表格');
@@ -187,7 +263,7 @@ const imageProcessor = {
                 flex-direction: column;
             `;
 
-            // 標題區域
+            // 修改標題區域
             const headerDiv = document.createElement('div');
             headerDiv.style.cssText = `
                 background-color: #d3efff;
@@ -200,6 +276,7 @@ const imageProcessor = {
                 align-items: center;
             `;
 
+            // 建立左側標題
             const titleH3 = document.createElement('h3');
             titleH3.textContent = '影像及病理報告';
             titleH3.style.cssText = `
@@ -209,6 +286,21 @@ const imageProcessor = {
                 font-weight: bold;
             `;
 
+            // 建立右側控制區域
+            const rightControls = document.createElement('div');
+            rightControls.style.cssText = `
+                display: flex;
+                align-items: center;
+                gap: 15px;
+            `;
+
+            // 添加分頁控制
+            if (window.nextPagingHandler) {
+                const pagingControls = window.nextPagingHandler.createPagingControls();
+                rightControls.appendChild(pagingControls);
+            }
+
+            // 關閉按鈕
             const closeButton = document.createElement('button');
             closeButton.textContent = '×';
             closeButton.style.cssText = `
@@ -223,7 +315,8 @@ const imageProcessor = {
             closeButton.onclick = () => displayDiv.remove();
 
             headerDiv.appendChild(titleH3);
-            headerDiv.appendChild(closeButton);
+            headerDiv.appendChild(rightControls);
+            rightControls.appendChild(closeButton);
 
             // 內容區域
             const contentDiv = document.createElement('div');
@@ -344,6 +437,37 @@ const imageProcessor = {
     // 檢查當前頁面是否為影像及病理頁面
     isImagePage() {
         return window.location.href.includes('IMUE0130');
+    },
+
+    // 修改初始化方法
+    async initialize() {
+        console.log('開始初始化影像報告處理功能');
+        this.cleanup();
+        
+        try {
+            const table = this.inspectImageTables();
+            if (table) {
+                const data = this.processImageData(table);
+                if (data && data.length > 0) {
+                    this.currentData = data;
+                    this.displayResults(data);
+                    this.listenToPageChanges();
+                    return true;
+                }
+            }
+            return false;
+        } catch (error) {
+            console.error('初始化過程發生錯誤:', error);
+            return false;
+        }
+    },
+
+    // 修改按鈕點擊處理
+    handleButtonClick() {
+        console.log('影像及病理按鈕被點擊');
+        this.initialize().catch(error => {
+            console.error('處理影像報告時發生錯誤:', error);
+        });
     }
 };
 

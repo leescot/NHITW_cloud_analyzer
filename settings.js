@@ -16,7 +16,8 @@ const DEFAULT_SETTINGS = {
     enableAutoPaging: false,
     maxPageCount: '1',
     enableLabAbbrev: true,
-    enableATC5Coloring: false
+    enableATC5Coloring: false,
+    showDiagnosis: false
 };
 
 // 當頁面載入時，載入已儲存的設定
@@ -35,6 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('simplifyMedicineName').checked = settings.simplifyMedicineName;
         document.getElementById('copyFormat').value = settings.copyFormat;
         document.getElementById('enableATC5Coloring').checked = settings.enableATC5Coloring;
+        document.getElementById('showDiagnosis').checked = settings.showDiagnosis;
         
         // 檢驗設定
         document.getElementById('autoProcess').checked = settings.autoProcess;
@@ -145,7 +147,8 @@ document.addEventListener('DOMContentLoaded', () => {
             enableAutoPaging: document.getElementById('enableAutoPaging').checked,
             maxPageCount: document.getElementById('maxPageCount').value,
             enableLabAbbrev: document.getElementById('enableLabAbbrev').checked,
-            enableATC5Coloring: document.getElementById('enableATC5Coloring').checked
+            enableATC5Coloring: document.getElementById('enableATC5Coloring').checked,
+            showDiagnosis: document.getElementById('showDiagnosis').checked
         };
 
         // 儲存設定

@@ -1,45 +1,64 @@
 const medicineProcessor = {
     // 事件監聽相關
+    // 修改 listenToPageChanges 方法
+    // 添加節流函數
+    throttle(func, limit) {
+        let waiting = false;
+        return function() {
+            if (!waiting) {
+                func.apply(this);
+                waiting = true;
+                setTimeout(function() {
+                    waiting = false;
+                }, limit);
+            }
+        }
+    },
+    
     listenToPageChanges() {
-        const paginationContainer = document.querySelector('.dataTables_paginate');
-        if (paginationContainer) {
-            // 使用 MutationObserver 監控表格內容變化
-            const tableObserver = new MutationObserver((mutations) => {
-                console.log('檢測到表格內容變化，重新處理資料');
-                const tables = this.inspectTables();
-                if (tables.length > 0) {
-                    tables.forEach(table => {
-                        const data = this.extractMedicineData(table);
-                        if (data) {
-                            this.displayResults(data);
-                        }
+        // 先清理現有的觀察器
+        if (this.currentObserver) {
+            this.currentObserver.disconnect();
+            this.currentObserver = null;
+        }
+    
+        const tableBody = document.querySelector('table tbody');
+        if (tableBody) {
+            // 使用節流的初始化函數
+            const throttledInit = this.throttle(() => {
+                // 只在資料表格內容變化時更新顯示視窗
+                const existingData = this.currentData;
+                const newData = this.extractMedicineData(tableBody.closest('table'));
+                
+                if (newData && JSON.stringify(newData) !== JSON.stringify(existingData)) {
+                    console.log('表格內容有變化，更新顯示');
+                    this.currentData = newData;
+                    chrome.storage.sync.get({
+                        enableATC5Coloring: false,
+                        titleFontSize: '16',
+                        contentFontSize: '14',
+                        noteFontSize: '12',
+                        windowWidth: '500',
+                        windowHeight: '80',
+                        showGenericName: false,
+                        simplifyMedicineName: true,
+                        copyFormat: 'nameWithDosageVertical',
+                        showDiagnosis: false
+                    }, settings => {
+                        this.displayResults(newData, settings);
                     });
                 }
+            }, 1000); // 設定 1 秒的節流時間
+    
+            // 建立新的觀察器
+            this.currentObserver = new MutationObserver(() => {
+                throttledInit();
             });
-
-            // 監控表格內容
-            const tableBody = document.querySelector('table tbody');
-            if (tableBody) {
-                tableObserver.observe(tableBody, {
-                    childList: true,
-                    subtree: true
-                });
-            }
-
-            // 監聽分頁按鈕點擊
-            paginationContainer.addEventListener('click', () => {
-                setTimeout(() => {
-                    console.log('分頁按鈕被點擊，重新處理資料');
-                    const tables = this.inspectTables();
-                    if (tables.length > 0) {
-                        tables.forEach(table => {
-                            const data = this.extractMedicineData(table);
-                            if (data) {
-                                this.displayResults(data);
-                            }
-                        });
-                    }
-                }, 500);
+    
+            // 開始觀察
+            this.currentObserver.observe(tableBody, {
+                childList: true,
+                subtree: true
             });
         }
     },
@@ -100,7 +119,7 @@ const medicineProcessor = {
         const frequencyMap = {
             'QD': 1, 'BID': 2, 'TID': 3, 'QID': 4,
             'Q2H': 12, 'Q4H': 6, 'Q6H': 4, 'Q8H': 3,
-            'Q12H': 2, 'HS': 1, 'PRN': 1, 'DAILY': 1
+            'Q12H': 2, 'HS': 1, 'PRN': 1, 'DAILY': 1, 'QN': 1, 'STAT':1, 'ST':1 
         };
 
         const freqMatch = frequency.toUpperCase().match(/QD|BID|TID|QID|Q2H|Q4H|Q6H|Q8H|Q12H|HS|PRN|DAILY/);
@@ -275,7 +294,7 @@ const medicineProcessor = {
             flex-direction: column;
         `;
 
-        // 創建標題區域
+        // 在 displayResults 函數裡的標題區域部分
         const headerDiv = document.createElement('div');
         headerDiv.style.cssText = `
             background-color: #d3efff;
@@ -286,9 +305,9 @@ const medicineProcessor = {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            flex-shrink: 0;
         `;
 
+        // 建立左側標題
         const titleH3 = document.createElement('h3');
         titleH3.textContent = '西醫用藥 用藥記錄';
         titleH3.style.cssText = `
@@ -298,6 +317,21 @@ const medicineProcessor = {
             font-weight: bold;
         `;
 
+        // 建立右側控制區域
+        const rightControls = document.createElement('div');
+        rightControls.style.cssText = `
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        `;
+
+        // 添加分頁控制
+        if (window.nextPagingHandler) {
+            const pagingControls = window.nextPagingHandler.createPagingControls();
+            rightControls.appendChild(pagingControls);
+        }
+
+        // 關閉按鈕
         const closeButton = document.createElement('button');
         closeButton.textContent = '×';
         closeButton.style.cssText = `
@@ -306,13 +340,14 @@ const medicineProcessor = {
             color: #2196F3;
             cursor: pointer;
             font-size: 20px;
-            padding: 0 0 3px 0;
+            padding: 0;
             line-height: 1;
         `;
         closeButton.onclick = () => displayDiv.remove();
 
         headerDiv.appendChild(titleH3);
-        headerDiv.appendChild(closeButton);
+        headerDiv.appendChild(rightControls);
+        rightControls.appendChild(closeButton);
 
         // 創建內容區域
         const contentDiv = document.createElement('div');
@@ -323,13 +358,13 @@ const medicineProcessor = {
         `;
 
         // 處理資料顯示
+        // 修正 displayResults 方法中的日期標題部分
         Object.values(groupedData)
             .sort((a, b) => b.date.localeCompare(a.date))
             .forEach(group => {
                 const dateBlock = document.createElement('div');
                 dateBlock.style.cssText = 'margin-bottom: 20px;';
 
-                // 日期標題區塊
                 const headerBlock = document.createElement('div');
                 headerBlock.style.cssText = `
                     font-weight: bold;
@@ -343,17 +378,40 @@ const medicineProcessor = {
                     align-items: center;
                 `;
 
-                const dateText = document.createElement('span');
-                dateText.textContent = this.formatDiagnosis(
-                    group.date,
-                    group.source,
-                    group.diagnosis,
-                    group.diagnosisCode
-                );
+                // 修改 displayResults 方法中顯示日期和診斷的部分
+                const dateText = document.createElement('div');
+                dateText.style.cssText = `
+                    display: flex;
+                    flex-direction: column;
+                    gap: 4px;
+                    flex: 1;
+                `;
+
+                const dateSourceRow = document.createElement('div');
+                dateSourceRow.textContent = `${group.date} ${group.source}`;
+                dateSourceRow.style.fontWeight = 'bold';
+
+                const diagnosisRow = document.createElement('div');
+                diagnosisRow.style.cssText = `
+                    font-size: ${parseInt(settings.titleFontSize) * 0.8}px;
+                    color: #2196F3;
+                    font-weight: normal;
+                `;
+
+                if (settings.showDiagnosis && group.diagnosis) {
+                    const diagnosisContent = group.diagnosisCode ? 
+                        `${group.diagnosis} (${group.diagnosisCode})` : 
+                        group.diagnosis;
+                    diagnosisRow.textContent = diagnosisContent;
+                }
+
+                dateText.appendChild(dateSourceRow);
+                if (settings.showDiagnosis && group.diagnosis) {
+                    dateText.appendChild(diagnosisRow);
+                }
 
                 const copyButton = document.createElement('button');
                 copyButton.textContent = '複製';
-                copyButton.dataset.date = group.date;
                 copyButton.style.cssText = `
                     background-color: #2196F3;
                     color: white;
@@ -365,7 +423,6 @@ const medicineProcessor = {
                     margin-left: 10px;
                     display: ${settings.copyFormat === 'none' ? 'none' : 'block'};
                 `;
-
                 copyButton.onclick = () => {
                     this.handleCopy(group.date, group.source, group.medicines, settings)
                         .then(() => {
@@ -378,6 +435,8 @@ const medicineProcessor = {
 
                 headerBlock.appendChild(dateText);
                 headerBlock.appendChild(copyButton);
+
+                dateBlock.appendChild(headerBlock);
 
                 // 藥品列表
                 const medicinesList = document.createElement('div');
@@ -524,7 +583,7 @@ const medicineProcessor = {
             // 整理並返回資料
             return {
                 date: rawData.date,
-                source: rawData.source.split('\n')[0], // 移除多餘的換行
+                source: rawData.source.split(/[\d\n]/)[0], // 移除數字和換行
                 diagnosis: rawData.diagnosis ? rawData.diagnosis.split('\n') : ['', ''],
                 medicineName: rawData.medicineName,
                 ingredient: rawData.ingredient,
@@ -565,40 +624,75 @@ const medicineProcessor = {
         return groupedData;
     },
 
-    // 初始化功能
-    initialize() {
-        chrome.storage.sync.get({
-            enableATC5Coloring: false,
-            atc5Colors: {
-                red: ['M01AA', 'M01AB', 'M01AC', 'M01AE', 'M01AG', 'M01AH'],
-                blue: [],
-                green: []
-            },
-            titleFontSize: '16',
-            contentFontSize: '14',
-            noteFontSize: '12',
-            windowWidth: '500',
-            windowHeight: '80',
-            showGenericName: false,
-            simplifyMedicineName: true,
-            copyFormat: 'nameWithDosageVertical'
-        }, (settings) => {
-            console.log('載入的設定:', settings);
+    // 合併和優化後的 initialize 方法
+    async initialize() {
+        console.log('開始初始化...');
+        // 先清理舊的資源
+        this.cleanup();
+        
+        try {
+            const settings = await new Promise(resolve => {
+                chrome.storage.sync.get({
+                    enableATC5Coloring: false,
+                    atc5Colors: {
+                        red: ['M01AA', 'M01AB', 'M01AC', 'M01AE', 'M01AG', 'M01AH'],
+                        blue: [],
+                        green: []
+                    },
+                    titleFontSize: '16',
+                    contentFontSize: '14',
+                    noteFontSize: '12',
+                    windowWidth: '500',
+                    windowHeight: '80',
+                    showGenericName: false,
+                    simplifyMedicineName: true,
+                    copyFormat: 'nameWithDosageVertical',
+                    showDiagnosis: false
+                }, resolve);
+            });
+
+            console.log('載入設定:', settings);
+            
             const tables = this.inspectTables();
             if (tables.length > 0) {
-                tables.forEach(table => {
+                for (const table of tables) {
                     if (settings.enableATC5Coloring && !this.checkATC5Column(table)) {
                         this.showATC5Warning();
-                        return;
+                        continue;
                     }
                     const data = this.extractMedicineData(table);
                     if (data) {
+                        // 儲存當前資料
+                        this.currentData = data;
                         this.displayResults(data, settings);
                         this.listenToPageChanges();
                     }
-                });
+                }
             }
-        });
+        } catch (error) {
+            console.error('初始化過程發生錯誤:', error);
+        }
+    },
+
+    cleanup() {
+        console.log('執行清理作業');
+        
+        // 移除現有的觀察器
+        if (this.currentObserver) {
+            this.currentObserver.disconnect();
+            this.currentObserver = null;
+            console.log('已清理觀察器');
+        }
+    
+        // 移除現有的顯示視窗
+        const existingDiv = document.getElementById('medicine-names-list');
+        if (existingDiv) {
+            existingDiv.remove();
+            console.log('已移除現有顯示視窗');
+        }
+        
+        // 清理暫存的資料
+        this.currentData = null;
     }
 };
 

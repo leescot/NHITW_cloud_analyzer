@@ -1,8 +1,8 @@
 {
     "manifest_version": 3,
     "name": "健保雲端資料整理",
-    "version": "1.0.18",
-    "description": "ACT5代碼",
+    "version": "1.0.20",
+    "description": "nextpage",
     "icons": {
         "16": "icon16.png",
         "48": "icon48.png",
@@ -30,6 +30,7 @@
                 "atc5ColorManager.js",
                 "imageProcessor.js",
                 "autoPaging.js",
+                "nextPaging.js",
                 "content.js"
             ],
             "css": ["style.css"]

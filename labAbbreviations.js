@@ -12,14 +12,14 @@ const DEFAULT_LAB_ABBREVIATIONS = {
 class LabAbbreviationManager {
     constructor() {
         console.log('初始化 LabAbbreviationManager');
-        console.log('預設縮寫:', DEFAULT_LAB_ABBREVIATIONS);
+        // console.log('預設縮寫:', DEFAULT_LAB_ABBREVIATIONS);
         this.abbreviations = {...DEFAULT_LAB_ABBREVIATIONS};
-        console.log('初始化後的縮寫:', this.abbreviations);
+        // console.log('初始化後的縮寫:', this.abbreviations);
     }
 
     // 修改 loadAbbreviations 方法
     async loadAbbreviations() {
-        console.log('開始載入縮寫設定');
+        // console.log('開始載入縮寫設定');
         try {
             const result = await new Promise(resolve => {
                 chrome.storage.sync.get({
@@ -28,14 +28,14 @@ class LabAbbreviationManager {
                 }, resolve);
             });
             
-            console.log('從 storage 載入的設定:', result);
+            // console.log('從 storage 載入的設定:', result);
             
             this.abbreviations = {
                 ...DEFAULT_LAB_ABBREVIATIONS,
                 ...result.userLabAbbreviations
             };
             
-            console.log('合併後的縮寫:', this.abbreviations);
+            // console.log('合併後的縮寫:', this.abbreviations);
             
             return {
                 abbreviations: this.abbreviations,
@@ -149,9 +149,9 @@ function createAbbreviationDialog() {
 window.labAbbreviationManager = new LabAbbreviationManager();
 window.createAbbreviationDialog = createAbbreviationDialog;
 
-console.log('開始創建 labAbbreviationManager');
+// console.log('開始創建 labAbbreviationManager');
 window.labAbbreviationManager = new LabAbbreviationManager();
-console.log('labAbbreviationManager 創建完成:', window.labAbbreviationManager);
+// console.log('labAbbreviationManager 創建完成:', window.labAbbreviationManager);
 
 // 立即執行初始化
 if (window.labAbbreviationManager) {
