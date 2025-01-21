@@ -14,7 +14,7 @@ const DEFAULT_SETTINGS = {
     showLabReference: false,
     labDisplayFormat: 'horizontal',
     enableAutoPaging: false,
-    maxPageCount: '1',
+    maxPageCount: '2',
     enableLabAbbrev: true,
     enableATC5Coloring: false,
     showDiagnosis: false

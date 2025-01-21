@@ -1,321 +1,297 @@
 console.log('載入自動翻頁處理模組');
 
 const autoPagingHandler = {
-    // 儲存狀態
+    // 儲存累積的資料
+    accumulatedData: {},
+    
+    // 儲存處理狀態
     state: {
-        isAutoPaging: false,
+        isProcessing: false,
         currentPage: 1,
-        maxPage: 1,
-        processingPage: false
+        targetPage: 1
     },
 
-    // 初始化
     initialize() {
-        console.log('開始初始化自動翻頁功能');
+        console.log('初始化自動翻頁功能');
         
-        // 先檢查設定再決定是否創建按鈕
-        chrome.storage.sync.get({ enableAutoPaging: true }, (settings) => {
-            if (settings.enableAutoPaging) {
-                console.log('自動翻頁功能已啟用，創建按鈕');
-                this.createPagingButton();
-                this.observeUrlChanges();
+        const waitForWindow = async () => {
+            const titleElement = document.querySelector('#medicine-names-list h3');
+            if (titleElement) {
+                await this.checkAndAddButton(titleElement);
             } else {
-                console.log('自動翻頁功能未啟用，不創建按鈕');
-                // 如果按鈕已存在，移除它
-                const existingButton = document.getElementById('auto-pagination-btn');
-                if (existingButton) {
-                    existingButton.remove();
-                }
+                setTimeout(waitForWindow, 500);
             }
+        };
+        
+        waitForWindow();
+    },
+    
+    // 新增檢查功能
+    // 在 autoPagingHandler 物件中
+    async shouldShowButton() {
+        // 檢查設定
+        const { enableAutoPaging } = await new Promise(resolve => {
+            chrome.storage.sync.get({ enableAutoPaging: false }, resolve);
         });
+        
+        console.log('自動翻頁設定狀態:', enableAutoPaging);
+    
+        if (!enableAutoPaging) {
+            console.log('自動翻頁功能未啟用，不顯示按鈕');
+            return false;
+        }
+    
+        // 確保 nextPagingHandler 存在且有更新頁面資訊
+        if (!window.nextPagingHandler) {
+            console.log('nextPagingHandler 未載入');
+            return false;
+        }
+    
+        const updateResult = window.nextPagingHandler.updatePaginationInfo();
+        console.log('更新分頁資訊結果:', updateResult);
+        
+        if (!updateResult) {
+            console.log('無法取得分頁資訊');
+            return false;
+        }
+    
+        const currentPage = window.nextPagingHandler.getCurrentPageNumber();
+        const maxPage = window.nextPagingHandler.state.maxPage;
+    
+        console.log('頁碼詳細資訊:', {
+            currentPage,
+            maxPage,
+            compareResult: currentPage === 1,
+            pageButtons: document.querySelectorAll('.paginate_button').length,
+            activeButton: document.querySelector('.paginate_button.current')?.textContent || 'none'
+        });
+        
+        // 只在第1頁且有多頁時顯示按鈕
+        const shouldShow = currentPage === 1 && maxPage > 1;
+        console.log('是否應該顯示按鈕:', shouldShow, '(當前頁面:', currentPage, ', 總頁數:', maxPage, ')');
+        
+        return shouldShow;
+    },
+    
+    // 新增檢查並添加按鈕的功能
+    async checkAndAddButton(titleElement) {
+        const shouldShow = await this.shouldShowButton();
+        
+        // 移除舊按鈕（如果存在）
+        const existingButton = titleElement.parentElement.querySelector('.auto-paging-button');
+        if (existingButton) {
+            existingButton.remove();
+        }
+
+        // 如果應該顯示按鈕，則創建新按鈕
+        if (shouldShow) {
+            const button = this.createAutoPagingButton();
+            // 添加特定的 class 以便之後識別
+            button.classList.add('auto-paging-button');
+            titleElement.parentElement.appendChild(button);
+        }
+    },
+    
+    // 建立連續讀取按鈕
+    createAutoPagingButton() {
+        const button = document.createElement('button');
+        button.textContent = '連續讀取';
+        button.style.cssText = `
+            background-color: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 4px 12px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-left: 10px;
+        `;
+        
+        button.onclick = () => this.startAutoPaging();
+        return button;
     },
 
-    // 新增監聽網址變化的函數
-    observeUrlChanges() {
-        let lastUrl = location.href;
-        new MutationObserver(() => {
-            const url = location.href;
-            if (url !== lastUrl) {
-                lastUrl = url;
-                console.log('URL changed, checking auto paging settings...');
-                
-                // URL 改變時也要檢查設定
-                chrome.storage.sync.get({ enableAutoPaging: true }, (settings) => {
-                    if (settings.enableAutoPaging) {
-                        console.log('自動翻頁功能已啟用，重新創建按鈕');
-                        this.createPagingButton();
-                        this.updatePaginationInfo();
-                    } else {
-                        console.log('自動翻頁功能未啟用，確保按鈕被移除');
-                        const existingButton = document.getElementById('auto-pagination-btn');
-                        if (existingButton) {
-                            existingButton.remove();
-                        }
-                    }
-                });
-            }
-        }).observe(document, { subtree: true, childList: true });
+    // 合併資料
+    mergeData(newData) {
+        if (!newData) return;
+        
+        // 根據不同頁面類型處理資料合併
+        const currentUrl = window.location.href;
+        
+        if (currentUrl.includes('IMUE0008')) {
+            // 藥品資料合併
+            Object.entries(newData).forEach(([date, data]) => {
+                if (!this.accumulatedData[date]) {
+                    this.accumulatedData[date] = data;
+                } else {
+                    // 合併相同日期的藥品清單
+                    this.accumulatedData[date].medicines = [
+                        ...this.accumulatedData[date].medicines,
+                        ...data.medicines
+                    ];
+                }
+            });
+        } else if (currentUrl.includes('IMUE0060')) {
+            // TO-DO: 檢驗資料合併邏輯
+        } else if (currentUrl.includes('IMUE0130')) {
+            // TO-DO: 影像資料合併邏輯
+        }
     },
 
-    // 建立自動翻頁按鈕
-    createPagingButton() {
-        console.log('準備創建自動翻頁按鈕');
+    // 開始自動翻頁處理
+    async startAutoPaging() {
+        if (this.state.isProcessing) return;
         
         try {
-            // 確保在目標頁面上
-            const currentUrl = window.location.href;
-            if (!currentUrl.includes('IMUE0008') && !currentUrl.includes('IMUE0060')) {
-                console.log('不在目標頁面上，不創建按鈕');
-                return;
-            }
-    
-            // 移除舊按鈕（如果存在）
-            const existingButton = document.getElementById('auto-pagination-btn');
-            if (existingButton) {
-                existingButton.remove();
-            }
-    
-            const button = document.createElement('button');
-            button.id = 'auto-pagination-btn';
-            button.textContent = '自動翻頁';
+            this.state.isProcessing = true;
+            this.accumulatedData = {};
             
-            Object.assign(button.style, {
-                position: 'fixed',
-                top: '95px',
-                right: '150px',
-                zIndex: '999999',
-                backgroundColor: '#2196F3',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                padding: '8px 16px',
-                cursor: 'pointer',
-                fontSize: '14px',
-                display: 'block',
-                fontFamily: 'Arial, "Microsoft JhengHei", sans-serif'
+            // 取得設定的最大頁數
+            const { maxPageCount } = await new Promise(resolve => {
+                chrome.storage.sync.get({ maxPageCount: '5' }, resolve);
             });
             
-            button.onclick = () => {
-                console.log('自動翻頁按鈕被點擊');
-                this.toggleAutoPaging();
-            };
-    
-            // 確保 body 存在並添加按鈕
-            if (document.body) {
-                document.body.appendChild(button);
-                console.log('自動翻頁按鈕已創建:', document.getElementById('auto-pagination-btn'));
-            } else {
-                console.error('無法找到 document.body');
+            // 初始化起始頁資料
+            if (window.location.href.includes('IMUE0008')) {
+                const initialData = window.medicineProcessor.currentData;
+                this.mergeData(initialData);
             }
+            
+            // 計算目標頁數
+            this.state.currentPage = window.nextPagingHandler.getCurrentPageNumber();
+            this.state.targetPage = Math.min(
+                this.state.currentPage + parseInt(maxPageCount) - 1,
+                window.nextPagingHandler.state.maxPage
+            );
+            
+            // 顯示處理中狀態
+            this.showProcessingStatus();
+            
+            // 開始連續讀取
+            while (this.state.currentPage < this.state.targetPage) {
+                await this.processNextPage();
+            }
+            
+            // 完成後顯示累積的資料
+            this.displayAccumulatedData();
+            
         } catch (error) {
-            console.error('創建按鈕時發生錯誤:', error);
-        }
-    },
-
-    // 更新分頁資訊
-    updatePaginationInfo() {
-        const pageButtons = Array.from(document.querySelectorAll('.paginate_button'));
-        console.log('找到的分頁按鈕:', pageButtons);
-
-        if (!pageButtons.length) {
-            console.log('沒有找到分頁按鈕');
-            return;
-        }
-
-        // 計算最大頁數
-        const pageNumbers = pageButtons
-            .map(button => parseInt(button.textContent))
-            .filter(num => !isNaN(num));
-
-        this.state.maxPage = Math.max(...pageNumbers, 1);
-        this.state.currentPage = this.getCurrentPageNumber();
-        
-        // 從設定中取得最大頁數限制
-        chrome.storage.sync.get({ maxPageCount: '5' }, (settings) => {
-            const maxAllowedPage = Math.min(parseInt(settings.maxPageCount), 10);
-            this.state.maxPage = Math.min(this.state.maxPage, maxAllowedPage);
-            
-            console.log('更新頁面資訊:', {
-                current: this.state.currentPage,
-                max: this.state.maxPage,
-                maxAllowed: maxAllowedPage,
-                allPages: pageNumbers
-            });
-        });
-    },
-
-    // 取得當前頁碼
-    getCurrentPageNumber() {
-        const activeButton = document.querySelector('.paginate_button.current');
-        if (!activeButton) {
-            console.log('未找到活動頁碼，返回預設值 1');
-            return 1;
-        }
-
-        const pageNum = parseInt(activeButton.textContent);
-        console.log('當前頁碼:', pageNum);
-        return isNaN(pageNum) ? 1 : pageNum;
-    },
-
-    // 切換自動翻頁狀態
-    toggleAutoPaging() {
-        this.state.isAutoPaging = !this.state.isAutoPaging;
-        this.state.processingPage = false;  // 重置處理狀態
-        const button = document.getElementById('auto-pagination-btn');
-        
-        if (this.state.isAutoPaging) {
-            console.log('開始自動翻頁');
-            button.textContent = '停止翻頁';
-            button.style.backgroundColor = '#F44336';
-            this.processNextPage();
-        } else {
-            console.log('停止自動翻頁');
-            button.textContent = '自動翻頁';
-            button.style.backgroundColor = '#2196F3';
+            console.error('自動翻頁過程發生錯誤:', error);
+        } finally {
+            this.state.isProcessing = false;
+            this.hideProcessingStatus();
         }
     },
 
     // 處理下一頁
     async processNextPage() {
-        // 先檢查狀態
-        if (!this.state.isAutoPaging) {
-            console.log('自動翻頁已停止');
-            return;
-        }
-    
-        if (this.state.processingPage) {
-            console.log('正在處理頁面，跳過此次處理');
-            return;
-        }
-    
-        // 標記開始處理
-        this.state.processingPage = true;
-    
-        try {
-            // 獲取設定
-            const settings = await new Promise(resolve => {
-                chrome.storage.sync.get({ maxPageCount: '5' }, resolve);
-            });
-            
-            const maxAllowedPage = Math.min(parseInt(settings.maxPageCount), 10);
-            
-            // 更新當前頁面資訊
-            this.updatePaginationInfo();
-            console.log('當前頁碼狀態:', {
-                currentPage: this.state.currentPage,
-                maxAllowedPage: maxAllowedPage,
-                isProcessing: this.state.processingPage
-            });
-    
-            // 檢查是否達到最大頁數
-            if (this.state.currentPage >= maxAllowedPage) {
-                console.log(`已到達設定的最大頁數 (${maxAllowedPage} 頁)`);
-                this.toggleAutoPaging();
-                this.state.processingPage = false;
-                return;
-            }
-    
-            const nextButton = this.findNextPageButton();
-            if (nextButton) {
-                console.log('找到下一頁按鈕，點擊中...');
-                nextButton.click();
-                
-                // 等待頁面載入
-                await this.waitForPageLoad();
-                
-                // 處理頁面內容
-                if (window.medicineProcessor || window.labProcessor) {
-                    console.log('處理頁面內容...');
-                    if (window.location.href.includes('IMUE0060')) {
-                        if (window.labProcessor) {
-                            await window.labProcessor.initialize();
-                        }
-                    } else {
-                        const tables = window.inspectAllTables();
-                        if (tables && tables.length > 0) {
-                            tables.forEach(table => {
-                                window.extractMedicineNames(table);
-                            });
-                        }
-                    }
-                }
-    
-                // 重置狀態並安排下一次處理
-                this.state.processingPage = false;
-                
-                // 使用 setTimeout 來確保狀態已經被重置
-                setTimeout(() => {
-                    if (this.state.isAutoPaging) {
-                        this.processNextPage();
-                    }
-                }, 1000);
-            } else {
-                console.log('未找到下一頁按鈕');
-                this.toggleAutoPaging();
-                this.state.processingPage = false;
-            }
-        } catch (error) {
-            console.error('自動翻頁處理錯誤:', error);
-            this.state.processingPage = false;
-            this.toggleAutoPaging();
-        }
-    },
-
-    // 尋找下一頁按鈕
-    findNextPageButton() {
-        const nextButton = document.querySelector('.paginate_button.next');
-        if (nextButton && !nextButton.classList.contains('disabled')) {
-            console.log('找到下一頁按鈕（Next）');
-            return nextButton;
-        }
-
-        const nextPageNum = this.state.currentPage + 1;
-        const pageButtons = document.querySelectorAll('.paginate_button');
+        await window.nextPagingHandler.handlePageChange(true);
         
-        for (const button of pageButtons) {
-            const pageNum = parseInt(button.textContent);
-            if (pageNum === nextPageNum && !button.classList.contains('disabled') && !button.classList.contains('current')) {
-                console.log('找到下一頁數字按鈕:', nextPageNum);
-                return button;
-            }
+        // 等待新資料載入
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // 根據頁面類型獲取並合併資料
+        if (window.location.href.includes('IMUE0008')) {
+            const newData = window.medicineProcessor.currentData;
+            this.mergeData(newData);
         }
-
-        console.log('沒有找到可用的下一頁按鈕');
-        return null;
+        
+        this.state.currentPage++;
+        this.updateProcessingStatus();
     },
 
-    // 等待頁面載入
-    waitForPageLoad() {
-        console.log('等待頁面載入...');
-        return new Promise((resolve) => {
-            const checkContent = (retries = 0, maxRetries = 10) => {
-                if (retries >= maxRetries) {
-                    console.log('等待頁面載入超時');
-                    resolve();
-                    return;
-                }
+    // 顯示處理中狀態
+    showProcessingStatus() {
+        const statusDiv = document.createElement('div');
+        statusDiv.id = 'auto-paging-status';
+        statusDiv.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background-color: #fff3cd;
+            color: #856404;
+            padding: 10px;
+            border-radius: 4px;
+            z-index: 10001;
+            font-size: 14px;
+        `;
+        this.updateStatusText(statusDiv);
+        document.body.appendChild(statusDiv);
+    },
 
-                const tables = document.getElementsByTagName('table');
-                const hasNewContent = Array.from(tables).some(table => {
-                    return table.querySelector('tbody tr td') !== null;
-                });
+    // 更新處理狀態
+    updateProcessingStatus() {
+        const statusDiv = document.getElementById('auto-paging-status');
+        if (statusDiv) {
+            this.updateStatusText(statusDiv);
+        }
+    },
 
-                if (hasNewContent) {
-                    console.log('頁面內容已載入');
-                    setTimeout(resolve, 500);
-                } else {
-                    console.log(`等待頁面載入... 重試次數: ${retries + 1}`);
-                    setTimeout(() => checkContent(retries + 1), 500);
-                }
-            };
+    // 更新狀態文字
+    updateStatusText(statusDiv) {
+        statusDiv.textContent = `正在處理中... (${this.state.currentPage}/${this.state.targetPage})`;
+    },
 
-            checkContent();
-        });
+    // 隱藏處理中狀態
+    hideProcessingStatus() {
+        const statusDiv = document.getElementById('auto-paging-status');
+        if (statusDiv) {
+            statusDiv.remove();
+        }
+    },
+
+    // 顯示累積的資料
+    displayAccumulatedData() {
+        if (window.location.href.includes('IMUE0008')) {
+            chrome.storage.sync.get({
+                enableATC5Coloring: false,
+                titleFontSize: '16',
+                contentFontSize: '14',
+                noteFontSize: '12',
+                windowWidth: '500',
+                windowHeight: '80',
+                showGenericName: false,
+                simplifyMedicineName: true,
+                copyFormat: 'nameWithDosageVertical'
+            }, settings => {
+                window.medicineProcessor.displayResults(this.accumulatedData, settings);
+            });
+        }
     }
 };
 
-// 將處理器掛載到 window 上
+// 初始化功能
+// function initializeAutoPaging() {
+//     chrome.storage.sync.get({ enableAutoPaging: true }, settings => {
+//         if (settings.enableAutoPaging) {
+//             // 檢查是否在相關頁面
+//             const currentUrl = window.location.href;
+//             if (currentUrl.includes('IMUE0008')) {
+//                 // 找到標題區域並添加按鈕
+//                 const observer = new MutationObserver((mutations, obs) => {
+//                     const titleElement = document.querySelector('#medicine-names-list h3');
+//                     if (titleElement) {
+//                         const button = autoPagingHandler.createAutoPagingButton();
+//                         titleElement.parentElement.appendChild(button);
+//                         obs.disconnect();
+//                     }
+//                 });
+
+//                 observer.observe(document.body, {
+//                     childList: true,
+//                     subtree: true
+//                 });
+//             }
+//         }
+//     });
+// }
+
+// 掛載到 window 對象
 window.autoPagingHandler = autoPagingHandler;
 
-// 觸發準備就緒事件
-document.dispatchEvent(new Event('autoPagingReady'));
+// 頁面載入完成後初始化
+document.addEventListener('DOMContentLoaded', () => {
+    if (window.location.href.includes('IMUE0008')) {
+        window.autoPagingHandler.initialize();
+    }
+});

@@ -273,89 +273,147 @@ const medicineProcessor = {
     displayResults(groupedData, userSettings = {}) {
         // 使用傳入的 userSettings，不使用預設值
         const settings = userSettings;
+        console.log('開始顯示資料，設定:', settings);
 
-        // 創建主容器
-        const displayDiv = document.createElement('div');
-        displayDiv.id = 'medicine-names-list';
-        displayDiv.style.cssText = `
-            position: fixed;
-            top: 90px;
-            right: 20px;
-            background-color: #ffffff;
-            border: 3px solid #d3efff;
-            padding: 20px;
-            border-radius: 10px;
-            height: ${settings.windowHeight}vh;
-            width: ${settings.windowWidth}px;
-            z-index: 10000;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-            font-family: Arial, sans-serif;
-            display: flex;
-            flex-direction: column;
-        `;
+        // 檢查是否為累積資料顯示
+        const isAccumulatedData = window.autoPagingHandler && 
+        window.autoPagingHandler.state.isProcessing;
 
-        // 在 displayResults 函數裡的標題區域部分
-        const headerDiv = document.createElement('div');
-        headerDiv.style.cssText = `
-            background-color: #d3efff;
-            color: #2196F3;
-            padding: 12px 15px;
-            margin: -20px -20px 15px -20px;
-            border-radius: 7px 7px 0 0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        `;
-
-        // 建立左側標題
-        const titleH3 = document.createElement('h3');
-        titleH3.textContent = '西醫用藥 用藥記錄';
-        titleH3.style.cssText = `
-            margin: 0;
-            font-size: ${settings.titleFontSize}px;
-            padding: 0;
-            font-weight: bold;
-        `;
-
-        // 建立右側控制區域
-        const rightControls = document.createElement('div');
-        rightControls.style.cssText = `
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        `;
-
-        // 添加分頁控制
-        if (window.nextPagingHandler) {
-            const pagingControls = window.nextPagingHandler.createPagingControls();
-            rightControls.appendChild(pagingControls);
+        // 創建或更新顯示容器
+        let displayDiv = document.getElementById('medicine-names-list');
+        if (!displayDiv) {
+            displayDiv = document.createElement('div');
+            displayDiv.id = 'medicine-names-list';
+            displayDiv.style.cssText = `
+                position: fixed;
+                top: 90px;
+                right: 20px;
+                background-color: #ffffff;
+                border: 3px solid #d3efff;
+                padding: 20px;
+                border-radius: 10px;
+                height: ${settings.windowHeight}vh;
+                width: ${settings.windowWidth}px;
+                z-index: 10000;
+                box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+                font-family: Arial, sans-serif;
+                display: flex;
+                flex-direction: column;
+            `;
+        } else {
+            // 如果是累積資料顯示，清空現有內容
+            if (isAccumulatedData) {
+                const contentDiv = displayDiv.querySelector('.content-container');
+                if (contentDiv) {
+                    contentDiv.innerHTML = '';
+                }
+            } else {
+                // 如果不是累積資料顯示，移除舊的視窗
+                displayDiv.remove();
+                return this.displayResults(groupedData, userSettings);
+            }
         }
 
-        // 關閉按鈕
-        const closeButton = document.createElement('button');
-        closeButton.textContent = '×';
-        closeButton.style.cssText = `
-            background: none;
-            border: none;
-            color: #2196F3;
-            cursor: pointer;
-            font-size: 20px;
-            padding: 0;
-            line-height: 1;
-        `;
-        closeButton.onclick = () => displayDiv.remove();
+        // 標題區域
+        if (!displayDiv.querySelector('.header-container')) {
+            const headerDiv = document.createElement('div');
+            headerDiv.className = 'header-container';
+            headerDiv.style.cssText = `
+                background-color: #d3efff;
+                color: #2196F3;
+                padding: 12px 15px;
+                margin: -20px -20px 15px -20px;
+                border-radius: 7px 7px 0 0;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            `;
 
-        headerDiv.appendChild(titleH3);
-        headerDiv.appendChild(rightControls);
-        rightControls.appendChild(closeButton);
+            // 左側區域：標題
+            const titleH3 = document.createElement('h3');
+            titleH3.textContent = '西醫用藥';
+            titleH3.style.cssText = `
+                margin: 0;
+                font-size: ${settings.titleFontSize}px;
+                padding: 0;
+                font-weight: bold;
+            `;
 
-        // 創建內容區域
-        const contentDiv = document.createElement('div');
-        contentDiv.style.cssText = `
-            flex-grow: 1;
-            overflow-y: auto;
-            padding-right: 5px;
-        `;
+            // 中間區域：自動讀取按鈕
+            const middleControls = document.createElement('div');
+            middleControls.style.cssText = `
+                display: flex;
+                align-items: center;
+                margin-left: 15px;
+            `;
+
+            // 添加自動翻頁按鈕
+            if (window.autoPagingHandler && !isAccumulatedData) {
+                window.autoPagingHandler.checkAndAddButton(titleH3)
+                    .then(() => {
+                        console.log('自動翻頁按鈕添加完成');
+                    })
+                    .catch(error => {
+                        console.error('添加自動翻頁按鈕時發生錯誤:', error);
+                    });
+            }
+
+            // 右側區域：分頁控制和關閉按鈕
+            const rightControls = document.createElement('div');
+            rightControls.style.cssText = `
+                display: flex;
+                align-items: center;
+                gap: 15px;
+                margin-left: auto;
+            `;
+
+            // 添加分頁控制
+            if (window.nextPagingHandler) {
+                const pagingControls = window.nextPagingHandler.createPagingControls();
+                rightControls.appendChild(pagingControls);
+            }
+
+            // 關閉按鈕
+            const closeButton = document.createElement('button');
+            closeButton.textContent = '×';
+            closeButton.style.cssText = `
+                background: none;
+                border: none;
+                color: #2196F3;
+                cursor: pointer;
+                font-size: 20px;
+                padding: 0;
+                line-height: 1;
+            `;
+            closeButton.onclick = () => displayDiv.remove();
+
+            // 組裝標題區域
+            const leftSection = document.createElement('div');
+            leftSection.style.cssText = `
+                display: flex;
+                align-items: center;
+            `;
+            leftSection.appendChild(titleH3);
+            leftSection.appendChild(middleControls);
+
+            headerDiv.appendChild(leftSection);
+            headerDiv.appendChild(rightControls);
+            rightControls.appendChild(closeButton);
+            displayDiv.appendChild(headerDiv);
+        }
+
+        // 內容區域
+        let contentDiv = displayDiv.querySelector('.content-container');
+        if (!contentDiv) {
+            contentDiv = document.createElement('div');
+            contentDiv.className = 'content-container';
+            contentDiv.style.cssText = `
+                flex-grow: 1;
+                overflow-y: auto;
+                padding-right: 5px;
+            `;
+            displayDiv.appendChild(contentDiv);
+        }
 
         // 處理資料顯示
         // 修正 displayResults 方法中的日期標題部分
@@ -482,15 +540,20 @@ const medicineProcessor = {
             });
 
         // 清除舊視窗
-        const existingDiv = document.getElementById('medicine-names-list');
-        if (existingDiv) {
-            existingDiv.remove();
-        }
+        // const existingDiv = document.getElementById('medicine-names-list');
+        // if (existingDiv) {
+        //     existingDiv.remove();
+        // }
 
-        // 組裝並顯示視窗
-        displayDiv.appendChild(headerDiv);
-        displayDiv.appendChild(contentDiv);
-        document.body.appendChild(displayDiv);
+        // // 組裝並顯示視窗
+        // displayDiv.appendChild(headerDiv);
+        // displayDiv.appendChild(contentDiv);
+        // document.body.appendChild(displayDiv);
+
+        // 如果是新建的視窗，添加到頁面
+        if (!document.getElementById('medicine-names-list')) {
+            document.body.appendChild(displayDiv);
+        }
     },
 
     // 檢查與分析表格
@@ -557,6 +620,11 @@ const medicineProcessor = {
         const rows = table.querySelectorAll('tbody tr');
         console.log('表格行數:', rows.length);
         
+        if (rows.length === 0) {
+            console.log('未找到資料行，可能是表格正在載入中');
+            return null;
+        }
+
         const medicineData = Array.from(rows).map(row => {
             const cells = row.querySelectorAll('td');
             if (cells.length === 0) return null;
@@ -597,38 +665,62 @@ const medicineProcessor = {
 
         // 依照日期分組
         const groupedData = medicineData.reduce((groups, med) => {
+            const key = `${med.date}_${med.medicineName}_${med.dosage}`; // 創建唯一鍵
+            
             if (!groups[med.date]) {
                 groups[med.date] = {
                     date: med.date,
                     source: med.source,
                     diagnosis: med.diagnosis[0] || '',
                     diagnosisCode: med.diagnosis[1] || '',
-                    medicines: []
+                    medicines: [],
+                    processedKeys: new Set() // 用於追踪已處理的藥品
                 };
             }
-
-            groups[med.date].medicines.push({
-                name: med.medicineName,
-                spec: med.spec,
-                dosage: med.dosage,
-                usage: med.usage,
-                days: med.days,
-                ingredient: med.ingredient,
-                atc5Code: med.atc5Code
-            });
-
+    
+            // 檢查是否已經處理過相同的藥品
+            if (!groups[med.date].processedKeys.has(key)) {
+                groups[med.date].medicines.push({
+                    name: med.medicineName,
+                    spec: med.spec,
+                    dosage: med.dosage,
+                    usage: med.usage,
+                    days: med.days,
+                    ingredient: med.ingredient,
+                    atc5Code: med.atc5Code
+                });
+                groups[med.date].processedKeys.add(key);
+            }
+    
             return groups;
         }, {});
-
-        console.log('分組後的藥品資料:', groupedData);
+    
+        // 清理臨時使用的 Set
+        Object.values(groupedData).forEach(group => {
+            delete group.processedKeys;
+        });
+    
         return groupedData;
     },
 
     // 合併和優化後的 initialize 方法
     async initialize() {
         console.log('開始初始化...');
-        // 先清理舊的資源
-        this.cleanup();
+
+        // 檢查是否正在進行自動翻頁
+        const isAutoPaging = window.autoPagingHandler && 
+                            window.autoPagingHandler.state.isProcessing;
+
+        // 檢查是自動處理還是手動點擊
+        const { autoProcess } = await new Promise(resolve => {
+            chrome.storage.sync.get({ autoProcess: false }, resolve);
+        });
+        
+        console.log('初始化模式:', { autoProcess, isAutoPaging });
+
+        if (!isAutoPaging) {
+            this.cleanup();
+        }
         
         try {
             const settings = await new Promise(resolve => {
@@ -651,26 +743,43 @@ const medicineProcessor = {
                 }, resolve);
             });
 
-            console.log('載入設定:', settings);
-            
             const tables = this.inspectTables();
-            if (tables.length > 0) {
-                for (const table of tables) {
-                    if (settings.enableATC5Coloring && !this.checkATC5Column(table)) {
+            if (tables.length === 0) {
+                console.log('未找到任何表格，可能頁面尚未完全載入');
+                return false;
+            }
+
+            let hasProcessedTable = false;
+            for (const table of tables) {
+                if (settings.enableATC5Coloring && !this.checkATC5Column(table)) {
+                    if (!isAutoPaging) {
                         this.showATC5Warning();
-                        continue;
                     }
-                    const data = this.extractMedicineData(table);
-                    if (data) {
-                        // 儲存當前資料
-                        this.currentData = data;
-                        this.displayResults(data, settings);
+                    continue;
+                }
+                const data = this.extractMedicineData(table);
+                if (data && Object.keys(data).length > 0) {
+                    this.currentData = data;
+                    this.displayResults(data, settings);
+                    if (!isAutoPaging) {
                         this.listenToPageChanges();
+                        
+                        // 初始化後觸發一次按鈕檢查
+                        const titleElement = document.querySelector('#medicine-names-list h3');
+                        if (titleElement && window.autoPagingHandler && window.nextPagingHandler) {
+                            console.log('嘗試添加翻頁按鈕');
+                            await window.autoPagingHandler.checkAndAddButton(titleElement);
+                        }
                     }
+                    hasProcessedTable = true;
+                    break;
                 }
             }
+            
+            return hasProcessedTable;
         } catch (error) {
             console.error('初始化過程發生錯誤:', error);
+            return false;
         }
     },
 

@@ -22,12 +22,12 @@ const AUTO_PROCESS_URLS = {
 };
 
 // 初始化設定
-chrome.storage.sync.get({
-    enableAutoPaging: true,
-    maxPageCount: '5'
-}, (settings) => {
-    console.log('自動翻頁設定:', settings);
-});
+// chrome.storage.sync.get({
+//     enableAutoPaging: true,
+//     maxPageCount: '5'
+// }, (settings) => {
+//     console.log('自動翻頁設定:', settings);
+// });
 
 // 按鈕相關
 let testButton;
@@ -134,17 +134,23 @@ function waitForTables(callback, maxAttempts = 10) {
                             headerText.includes('medicine')) &&
                             table.querySelector('tbody tr td') !== null;
                 });
+            } else if (currentUrl === AUTO_PROCESS_URLS.LAB) {
+                // 修改檢驗報告的檢查邏輯
+                hasDataTable = Array.from(tables).some(table => {
+                    // 先檢查是否有資料列
+                    const hasRows = table.querySelector('tbody tr td') !== null;
+                    if (!hasRows) return false;
 
-                // 檢查是否有 ATC5 代碼欄位
-                chrome.storage.sync.get({ enableATC5Coloring: false }, (settings) => {
-                    if (settings.enableATC5Coloring) {
-                        const hasATC5Column = Array.from(tables).some(table => 
-                            medicineProcessor.checkATC5Column(table)
-                        );
-                        if (hasDataTable && !hasATC5Column) {
-                            medicineProcessor.showATC5Warning();
-                        }
-                    }
+                    // 檢查表頭是否包含必要欄位
+                    const headers = Array.from(table.querySelectorAll('th'))
+                        .map(th => th.textContent.trim().toLowerCase());
+                    
+                    // 放寬檢查條件，只要包含其中一個關鍵字即可
+                    return headers.some(header => 
+                        header.includes('檢驗') || 
+                        header.includes('醫令') || 
+                        header.includes('結果')
+                    );
                 });
             } else if (currentUrl === AUTO_PROCESS_URLS.IMAGE) {
                 // 為影像頁面添加特殊處理
@@ -166,7 +172,7 @@ function waitForTables(callback, maxAttempts = 10) {
                 setTimeout(callback, 500);
             } else if (attempts < maxAttempts) {
                 attempts++;
-                console.log(`等待表格載入... 嘗試次數: ${attempts}`);
+                console.log(`等待表格載入... 嘗試次數: ${attempts}，目前URL: ${currentUrl}`);
                 setTimeout(checkTables, 1000);
             } else {
                 console.log('等待表格載入超時');
@@ -183,9 +189,12 @@ function autoProcessPage() {
     const currentUrl = window.location.href;
     
     if (currentUrl === AUTO_PROCESS_URLS.LAB) {
-        console.log('檢測到檢驗報告頁面，等待表格載入');
+        console.log('檢測到檢驗報告頁面，準備初始化');
         if (window.labProcessor) {
-            window.labProcessor.initialize();
+            waitForTables(() => {
+                console.log('檢驗報告表格已載入，開始處理');
+                window.labProcessor.initialize();
+            });
         }
     } else if (currentUrl === AUTO_PROCESS_URLS.IMAGE) {
         console.log('檢測到影像報告頁面，等待表格載入');
@@ -261,7 +270,17 @@ function initAutoProcess() {
         chrome.storage.sync.get({ autoProcess: false }, (settings) => {
             if (settings.autoProcess) {
                 console.log('自動處理功能已啟用，開始監控表格載入');
-                autoProcessPage();
+                // 等待表格載入
+                waitForTables(() => {
+                    console.log('表格已載入，開始自動處理');
+                    if (window.location.href.includes('IMUE0008')) {
+                        window.medicineProcessor.initialize();
+                    } else if (window.location.href.includes('IMUE0060')) {
+                        window.labProcessor.initialize();
+                    } else if (window.location.href.includes('IMUE0130')) {
+                        window.imageProcessor.initialize();
+                    }
+                });
             } else {
                 console.log('自動處理功能未啟用，等待使用者點擊按鈕');
             }
@@ -280,28 +299,25 @@ function initButtons() {
     console.log('當前URL:', currentUrl);
     
     if (currentUrl.includes('IMUE0008') || currentUrl.includes('IMUE0060')) {
-        chrome.storage.sync.get({ enableAutoPaging: true }, (settings) => {
-            if (settings.enableAutoPaging) {
-                const waitForTableAndInit = () => {
-                    const tables = document.getElementsByTagName('table');
-                    const hasDataTable = Array.from(tables).some(table => 
-                        table.querySelector('tbody tr td') !== null
-                    );
-                    
-                    if (hasDataTable) {
-                        console.log('表格已載入，初始化自動翻頁按鈕');
-                        if (window.autoPagingHandler) {
-                            window.autoPagingHandler.initialize();
-                        }
-                    } else {
-                        console.log('等待表格載入...');
-                        setTimeout(waitForTableAndInit, 500);
-                    }
-                };
-                
-                waitForTableAndInit();
+        // 等待表格和藥品處理器都準備好
+        const waitForTableAndInit = () => {
+            const tables = document.getElementsByTagName('table');
+            const hasDataTable = Array.from(tables).some(table => 
+                table.querySelector('tbody tr td') !== null
+            );
+            
+            if (hasDataTable && window.autoPagingHandler) {
+                console.log('表格已載入，初始化自動翻頁');
+                setTimeout(() => {
+                    window.autoPagingHandler.initialize();
+                }, 1000); // 延遲初始化，確保其他組件已準備就緒
+            } else {
+                console.log('等待表格載入...');
+                setTimeout(waitForTableAndInit, 500);
             }
-        });
+        };
+        
+        waitForTableAndInit();
     }
     
     // 初始化自動處理

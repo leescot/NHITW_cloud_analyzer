@@ -1,8 +1,8 @@
 {
     "manifest_version": 3,
     "name": "健保雲端資料整理",
-    "version": "1.0.20",
-    "description": "nextpage",
+    "version": "1.0.26",
+    "description": "autoreadpage part 6",
     "icons": {
         "16": "icon16.png",
         "48": "icon48.png",

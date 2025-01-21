@@ -38,6 +38,18 @@ const nextPagingHandler = {
         return true;
     },
 
+    debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    },
+
     // 取得當前頁碼
     getCurrentPageNumber() {
         const activeButton = document.querySelector('.paginate_button.current');
@@ -56,7 +68,58 @@ const nextPagingHandler = {
         return this.state.currentPage > 1;
     },
 
-    // 處理頁面跳轉
+    setupPageChangeListener() {
+        let lastProcessedState = '';
+        
+        const debouncedUpdate = this.debounce(() => {
+            // 檢查分頁狀態是否真的改變
+            const currentState = `${this.getCurrentPageNumber()}_${this.state.maxPage}`;
+            if (lastProcessedState === currentState) {
+                console.log('分頁狀態未改變，跳過更新');
+                return;
+            }
+            
+            if (this.updatePaginationInfo()) {
+                const titleElement = document.querySelector('#medicine-names-list h3');
+                if (titleElement && window.autoPagingHandler) {
+                    window.autoPagingHandler.checkAndAddButton(titleElement);
+                    lastProcessedState = currentState;
+                }
+            }
+        }, 500);
+    
+        // 找到分頁控制區域
+        const paginationContainer = document.querySelector('.dataTables_paginate');
+        if (!paginationContainer) {
+            console.log('未找到分頁控制區域');
+            return null;
+        }
+    
+        // 只觀察分頁控制區域
+        const observer = new MutationObserver((mutations) => {
+            // 檢查是否有相關變化
+            const hasRelevantChanges = mutations.some(mutation => {
+                return mutation.type === 'childList' || 
+                       (mutation.type === 'attributes' && mutation.attributeName === 'class');
+            });
+    
+            if (hasRelevantChanges) {
+                debouncedUpdate();
+            }
+        });
+    
+        observer.observe(paginationContainer, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            attributeFilter: ['class'],
+            characterData: false
+        });
+        
+        return observer;
+    },
+    
+    // 修改 handlePageChange 方法
     async handlePageChange(isNext) {
         if (isNext && !this.hasNextPage()) {
             console.log('已經是最後一頁');
@@ -66,7 +129,7 @@ const nextPagingHandler = {
             console.log('已經是第一頁');
             return;
         }
-
+    
         const button = isNext ? this.findNextPageButton() : this.findPrevPageButton();
         if (button) {
             console.log(isNext ? '點擊下一頁按鈕' : '點擊上一頁按鈕');
@@ -86,6 +149,9 @@ const nextPagingHandler = {
             
             // 等待頁面載入
             await this.waitForPageLoad();
+            
+            // 更新頁面資訊
+            this.updatePaginationInfo();
             
             // 重新初始化相應的處理器
             try {
@@ -223,7 +289,7 @@ const nextPagingHandler = {
             color: #666;
             font-size: 14px;
         `;
-        pageInfo.textContent = `(第${this.state.currentPage}頁/最大${this.state.maxPage}頁)`;
+        pageInfo.textContent = `(第${this.state.currentPage}/${this.state.maxPage}頁)`;
 
         // 組合控制元件
         controlsDiv.appendChild(prevButton);
@@ -231,11 +297,23 @@ const nextPagingHandler = {
         controlsDiv.appendChild(pageInfo);
 
         return controlsDiv;
+    },
+
+    initialize() {
+        const observer = this.setupPageChangeListener();
+        if (observer) {
+            console.log('分頁監聽器已設置');
+        } else {
+            console.log('分頁監聽器設置失敗，可能找不到分頁控制區域');
+        }
     }
 };
 
 // 將處理器掛載到 window 上
 window.nextPagingHandler = nextPagingHandler;
+
+// 初始化
+nextPagingHandler.initialize();
 
 // 觸發準備就緒事件
 document.dispatchEvent(new Event('nextPagingReady'));
