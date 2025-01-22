@@ -306,10 +306,10 @@ const labProcessor = {
         return null;
     },
 
-    // 分析檢驗數據
+    // 修改分析檢驗數據的函數
     analyzeLabData(table) {
         console.log('開始分析檢驗報告數據');
-    
+
         if (!table) {
             console.error('無法分析：未提供表格');
             return null;
@@ -319,10 +319,11 @@ const labProcessor = {
         const headers = Array.from(table.querySelectorAll('th')).map(th => th.textContent.trim());
         console.log('表頭:', headers);
 
-        // 動態建立欄位映射
+        // 動態建立欄位映射，新增醫令代碼欄位
         const columnMap = {
             檢驗日期: headers.indexOf('檢驗日期'),
             醫令名稱: headers.indexOf('醫令名稱'),
+            醫令代碼: headers.indexOf('醫令代碼'), // 新增醫令代碼欄位
             檢驗項目: headers.indexOf('檢驗項目'),
             檢驗結果: headers.indexOf('檢驗結果'),
             單位: headers.indexOf('單位'),
@@ -340,7 +341,7 @@ const labProcessor = {
             if (cells.length === 0) return null;
 
             const testName = cells[columnMap.檢驗項目]?.textContent.trim() || 
-                           cells[columnMap.醫令名稱]?.textContent.trim();
+                            cells[columnMap.醫令名稱]?.textContent.trim();
 
             let result = cells[columnMap.檢驗結果]?.textContent.trim() || '';
             const reference = cells[columnMap.參考值]?.textContent.trim() || '';
@@ -348,7 +349,7 @@ const labProcessor = {
             // 解析參考值範圍
             const referenceRange = this.parseReferenceRange(reference);
             
-            // 在這裡就進行特殊值的處理
+            // 處理特殊值
             if (testName) {
                 result = labValueProcessor.processLabValue(testName, result, referenceRange);
             }
@@ -356,6 +357,7 @@ const labProcessor = {
             return {
                 date: cells[columnMap.檢驗日期]?.textContent.trim(),
                 testName: testName,
+                orderId: cells[columnMap.醫令代碼]?.textContent.trim() || '', // 新增醫令代碼
                 result: result,
                 reference: reference,
                 source: cells[columnMap.來源]?.textContent.trim()
@@ -471,32 +473,46 @@ const labProcessor = {
         return null;  // 無法解析的格式
     },
 
-    isValueNormal(value, referenceRange, testName) {  // 加入 testName 參數
-        if (!value) return null;
-    
+    // 修改 isValueNormal 函數為 checkValueStatus
+    isValueNormal(value, referenceRange, testName) {
+        if (!value) return { status: 'normal' };
+
         // 優先處理特殊檢驗項目
         const specialResult = labValueProcessor.checkSpecialNormal(testName, value);
         if (specialResult !== null) {
-            return specialResult;
+            return { 
+                status: specialResult ? 'normal' : 'high'  // 特殊項目只區分正常和偏高
+            };
         }
-    
+
         // 處理定性檢驗結果
         if (typeof value === 'string' && 
             (value.toLowerCase().includes('negative') || 
-             value.toLowerCase().includes('normal') || 
-             value.toLowerCase().includes('not found'))) {
-            return true;
+            value.toLowerCase().includes('normal') || 
+            value.toLowerCase().includes('not found'))) {
+            return { status: 'normal' };
         }
-    
-        if (!referenceRange) return null;
-    
+
+        if (!referenceRange) return { status: 'normal' };
+
         const numValue = parseFloat(value);
-        if (isNaN(numValue)) return null;
-    
+        if (isNaN(numValue)) return { status: 'normal' };
+
+        // 判斷值的狀態
         if (referenceRange.max === null) {
-            return numValue >= referenceRange.min;
+            // 只有下限值的情況
+            return {
+                status: numValue < referenceRange.min ? 'low' : 'normal'
+            };
         } else {
-            return numValue >= referenceRange.min && numValue <= referenceRange.max;
+            // 有上下限的情況
+            if (numValue < referenceRange.min) {
+                return { status: 'low' };
+            } else if (numValue > referenceRange.max) {
+                return { status: 'high' };
+            } else {
+                return { status: 'normal' };
+            }
         }
     },
 
@@ -793,10 +809,22 @@ const labProcessor = {
                             const itemSpan = document.createElement('span');
                             const { value, unit } = this.separateValueAndUnit(item.result);
                             const referenceRange = this.parseReferenceRange(item.reference);
-                            const isNormal = this.isValueNormal(value, referenceRange, item.testName);
-    
-                            itemSpan.style.color = settings.highlightAbnormalLab && isNormal === false ? '#FF0000' : '#000000';
-    
+                            const valueStatus = this.isValueNormal(value, referenceRange, item.testName);
+                        
+                            // 根據狀態設置顏色
+                            if (settings.highlightAbnormalLab) {
+                                switch (valueStatus.status) {
+                                    case 'low':
+                                        itemSpan.style.color = '#008000'; // 綠色
+                                        break;
+                                    case 'high':
+                                        itemSpan.style.color = '#FF0000'; // 紅色
+                                        break;
+                                    default:
+                                        itemSpan.style.color = '#000000'; // 正常值為黑色
+                                }
+                            }
+
                             // console.log('檢驗項目名稱:', item.testName);
                             let displayName = item.testName;
                             if (settings.enableLabAbbrev && enabled) {

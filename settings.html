@@ -196,6 +196,18 @@
                     <input type="checkbox" id="showGenericName">
                     顯示藥品學名
                 </label>
+                
+                <label class="checkbox-label">
+                    <input type="checkbox" id="enableMedicineGrouping">
+                    開啟藥物表格顯示 (需開啟自動翻頁功能)
+                </label>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="enableATC5Coloring">
+                    開啟 ATC5碼 藥品提示功能 (表格欄位設定需新增「ATC5代碼」)
+                </label>
+                <button id="manageATC5Colors" class="secondary-button" style="display: none;">
+                    管理 ATC5碼 顏色對照
+                </button>
                 <label>
                     複製藥品格式：
                     <select id="copyFormat">
@@ -206,13 +218,6 @@
                         <option value="nameWithDosageHorizontal">複製商品名+使用量(橫式)</option>
                     </select>
                 </label>
-                <label class="checkbox-label">
-                    <input type="checkbox" id="enableATC5Coloring">
-                    開啟 ATC5碼 藥品提示功能 (表格欄位設定需新增「ATC5代碼」)
-                </label>
-                <button id="manageATC5Colors" class="secondary-button" style="display: none;">
-                    管理 ATC5碼 顏色對照
-                </button>
             </div>
 
             <div class="setting-group">
@@ -223,7 +228,7 @@
                 </label>
                 <label class="checkbox-label">
                     <input type="checkbox" id="highlightAbnormalLab">
-                    異常檢驗值變色顯示
+                    異常檢驗值變色顯示(小於正常區間:綠色/大於:紅色)
                 </label>
                 <label class="checkbox-label">
                     <input type="checkbox" id="showLabReference">

@@ -245,6 +245,11 @@ const autoPagingHandler = {
         if (window.location.href.includes('IMUE0008')) {
             chrome.storage.sync.get({
                 enableATC5Coloring: false,
+                atc5Colors: {
+                    red: ['M01AA', 'M01AB', 'M01AC', 'M01AE', 'M01AG', 'M01AH'],
+                    blue: [],
+                    green: []
+                },
                 titleFontSize: '16',
                 contentFontSize: '14',
                 noteFontSize: '12',
@@ -259,32 +264,6 @@ const autoPagingHandler = {
         }
     }
 };
-
-// 初始化功能
-// function initializeAutoPaging() {
-//     chrome.storage.sync.get({ enableAutoPaging: true }, settings => {
-//         if (settings.enableAutoPaging) {
-//             // 檢查是否在相關頁面
-//             const currentUrl = window.location.href;
-//             if (currentUrl.includes('IMUE0008')) {
-//                 // 找到標題區域並添加按鈕
-//                 const observer = new MutationObserver((mutations, obs) => {
-//                     const titleElement = document.querySelector('#medicine-names-list h3');
-//                     if (titleElement) {
-//                         const button = autoPagingHandler.createAutoPagingButton();
-//                         titleElement.parentElement.appendChild(button);
-//                         obs.disconnect();
-//                     }
-//                 });
-
-//                 observer.observe(document.body, {
-//                     childList: true,
-//                     subtree: true
-//                 });
-//             }
-//         }
-//     });
-// }
 
 // 掛載到 window 對象
 window.autoPagingHandler = autoPagingHandler;

@@ -1,8 +1,8 @@
 {
     "manifest_version": 3,
     "name": "健保雲端資料整理",
-    "version": "1.0.26",
-    "description": "autoreadpage part 6",
+    "version": "1.0.28",
+    "description": "drug ATC group + lab green color",
     "icons": {
         "16": "icon16.png",
         "48": "icon48.png",
@@ -31,6 +31,7 @@
                 "imageProcessor.js",
                 "autoPaging.js",
                 "nextPaging.js",
+                "medicineGrouping.js",
                 "content.js"
             ],
             "css": ["style.css"]

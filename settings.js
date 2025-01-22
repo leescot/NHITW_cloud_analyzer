@@ -13,11 +13,12 @@ const DEFAULT_SETTINGS = {
     highlightAbnormalLab: true,
     showLabReference: false,
     labDisplayFormat: 'horizontal',
-    enableAutoPaging: false,
-    maxPageCount: '2',
+    enableAutoPaging: true,
+    maxPageCount: '5',
     enableLabAbbrev: true,
     enableATC5Coloring: false,
-    showDiagnosis: false
+    showDiagnosis: false,
+    enableMedicineGrouping: true
 };
 
 // 當頁面載入時，載入已儲存的設定
@@ -37,6 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('copyFormat').value = settings.copyFormat;
         document.getElementById('enableATC5Coloring').checked = settings.enableATC5Coloring;
         document.getElementById('showDiagnosis').checked = settings.showDiagnosis;
+        document.getElementById('enableMedicineGrouping').checked = settings.enableMedicineGrouping;
         
         // 檢驗設定
         document.getElementById('autoProcess').checked = settings.autoProcess;
@@ -148,7 +150,8 @@ document.addEventListener('DOMContentLoaded', () => {
             maxPageCount: document.getElementById('maxPageCount').value,
             enableLabAbbrev: document.getElementById('enableLabAbbrev').checked,
             enableATC5Coloring: document.getElementById('enableATC5Coloring').checked,
-            showDiagnosis: document.getElementById('showDiagnosis').checked
+            showDiagnosis: document.getElementById('showDiagnosis').checked,
+            enableMedicineGrouping: document.getElementById('enableMedicineGrouping').checked
         };
 
         // 儲存設定

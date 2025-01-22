@@ -325,6 +325,7 @@ function initButtons() {
 }
 
 // URL 變化監聽
+// URL 變化監聽
 let lastUrl = location.href;
 new MutationObserver(() => {
     const url = location.href;
@@ -334,6 +335,13 @@ new MutationObserver(() => {
             url.includes('IMUE0060') || 
             url.includes('IMUE0130')) {
             console.log('URL 變更，重新初始化按鈕');
+            
+            // 清理累積的資料
+            if (window.autoPagingHandler) {
+                window.autoPagingHandler.accumulatedData = {};
+                console.log('已清理累積的藥物資料');
+            }
+            
             setTimeout(() => {
                 initButtons();
             }, 1000);

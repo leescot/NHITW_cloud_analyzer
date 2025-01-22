@@ -63,6 +63,41 @@ const medicineProcessor = {
         }
     },
 
+
+    // 創建表格顯示按鈕
+    async createGroupingButton() {
+        if (!window.medicineGroupingHandler) {
+            console.error('medicineGroupingHandler 未載入');
+            return null;
+        }
+
+        const shouldShow = await window.medicineGroupingHandler.shouldShowGroupingButton();
+        if (!shouldShow) {
+            return null;
+        }
+
+        const button = document.createElement('button');
+        button.textContent = '表格顯示';
+        button.style.cssText = `
+            background-color: #f28500;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 4px 12px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-left: 10px;
+        `;
+        
+        button.onclick = () => {
+            if (this.currentData) {
+                window.medicineGroupingHandler.handleGroupingDisplay(this.currentData);
+            }
+        };
+
+        return button;
+    },
+
     // ATC5 相關功能
     checkATC5Column(table) {
         const headers = Array.from(table.querySelectorAll('th'))
@@ -93,10 +128,10 @@ const medicineProcessor = {
     getATC5Color(atc5Code, settings) {
         if (!settings.enableATC5Coloring || !atc5Code) return null;
         
-        console.log('正在檢查 ATC5 顏色:', {  // 添加日誌
-            code: atc5Code,
-            settings: settings
-        });
+        // console.log('正在檢查 ATC5 顏色:', {  // 添加日誌
+        //     code: atc5Code,
+        //     settings: settings
+        // });
 
         const { atc5Colors } = settings;
 
@@ -229,8 +264,6 @@ const medicineProcessor = {
             medicineTexts.join('\n');
     },
 
-    // 在 medicineProcessor 物件中新增 processMedicineDisplay 方法
-
     processMedicineDisplay(medicine, showGenericName = true, simplifyName = true) {
         const perDosage = this.calculatePerDosage(medicine.dosage, medicine.usage, medicine.days);
         let displayText;
@@ -270,7 +303,7 @@ const medicineProcessor = {
     },
 
     // 在 medicineProcessor 物件中新增
-    displayResults(groupedData, userSettings = {}) {
+    async displayResults(groupedData, userSettings = {}) {
         // 使用傳入的 userSettings，不使用預設值
         const settings = userSettings;
         console.log('開始顯示資料，設定:', settings);
@@ -340,12 +373,12 @@ const medicineProcessor = {
             `;
 
             // 中間區域：自動讀取按鈕
-            const middleControls = document.createElement('div');
-            middleControls.style.cssText = `
-                display: flex;
-                align-items: center;
-                margin-left: 15px;
-            `;
+            // const middleControls = document.createElement('div');
+            // middleControls.style.cssText = `
+            //     display: flex;
+            //     align-items: center;
+            //     margin-left: 15px;
+            // `;
 
             // 添加自動翻頁按鈕
             if (window.autoPagingHandler && !isAccumulatedData) {
@@ -394,6 +427,39 @@ const medicineProcessor = {
                 align-items: center;
             `;
             leftSection.appendChild(titleH3);
+
+            const middleControls = document.createElement('div');
+            middleControls.style.cssText = `
+                display: flex;
+                align-items: center;
+                margin-left: 15px;
+            `;
+
+            // 添加表格顯示按鈕
+            const groupingButton = await this.createGroupingButton();
+            if (groupingButton) {
+                middleControls.appendChild(groupingButton);
+            }
+            
+            // 如果是自動翻頁完成，再次檢查按鈕
+            if (isAccumulatedData) {
+                const newGroupingButton = await this.createGroupingButton();
+                if (newGroupingButton && !middleControls.querySelector('button')) {
+                    middleControls.appendChild(newGroupingButton);
+                }
+            }
+
+            // 添加自動翻頁按鈕
+            if (window.autoPagingHandler && !isAccumulatedData) {
+                window.autoPagingHandler.checkAndAddButton(titleH3)
+                    .then(() => {
+                        console.log('自動翻頁按鈕添加完成');
+                    })
+                    .catch(error => {
+                        console.error('添加自動翻頁按鈕時發生錯誤:', error);
+                    });
+            }
+
             leftSection.appendChild(middleControls);
 
             headerDiv.appendChild(leftSection);
