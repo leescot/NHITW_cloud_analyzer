@@ -36,6 +36,40 @@ const labProcessor = {
         });
     },
 
+    // 創建表格顯示按鈕
+    async createGroupingButton() {
+        if (!window.labGroupingHandler) {
+            console.error('labGroupingHandler 未載入');
+            return null;
+        }
+
+        const shouldShow = await window.labGroupingHandler.shouldShowGroupingButton();
+        if (!shouldShow) {
+            return null;
+        }
+
+        const button = document.createElement('button');
+        button.textContent = '表格顯示';
+        button.style.cssText = `
+            background-color: #f28500;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 4px 12px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-left: 10px;
+        `;
+        
+        button.onclick = () => {
+            if (this.currentData) {
+                window.labGroupingHandler.handleGroupingDisplay(this.currentData);
+            }
+        };
+
+        return button;
+    },
+
     // 開始自動翻頁處理
     async startAutoPaging() {
         if (this.state.isProcessing) return;
@@ -49,7 +83,7 @@ const labProcessor = {
                 chrome.storage.sync.get({ maxPageCount: '5' }, resolve);
             });
             
-            // 初始化起始頁資料
+            // 初始化起始頁數據
             const table = this.inspectLabTables();
             if (table) {
                 const initialData = this.analyzeLabData(table);
@@ -57,11 +91,15 @@ const labProcessor = {
             }
             
             // 計算目標頁數
+            const maxPage = window.nextPagingHandler.state.maxPage;
             this.state.currentPage = window.nextPagingHandler.getCurrentPageNumber();
-            this.state.targetPage = Math.min(
-                this.state.currentPage + parseInt(maxPageCount) - 1,
-                window.nextPagingHandler.state.maxPage
-            );
+            this.state.targetPage = Math.min(parseInt(maxPageCount), maxPage);
+            
+            console.log('自動翻頁初始狀態:', {
+                currentPage: this.state.currentPage,
+                targetPage: this.state.targetPage,
+                maxPage: maxPage
+            });
             
             // 顯示處理中狀態
             this.showProcessingStatus();
@@ -71,27 +109,21 @@ const labProcessor = {
                 await this.processNextPage();
             }
             
-            // 完成後顯示累積的資料
-            console.log('累積的資料:', this.accumulatedData);  // 新增除錯訊息
+            // 完成後設置處理完成狀態
+            this.state.isProcessing = false;
+            this.hideProcessingStatus();
             
-            chrome.storage.sync.get({
-                titleFontSize: '16',
-                contentFontSize: '14',
-                noteFontSize: '12',
-                windowWidth: '500',
-                windowHeight: '80',
-                showLabUnit: false,
-                highlightAbnormalLab: false,
-                showLabReference: false,
-                labDisplayFormat: 'horizontal',
-                enableLabAbbrev: true
-            }, settings => {
-                this.displayLabResults(this.accumulatedData, settings);
+            console.log('自動翻頁完成狀態:', {
+                currentPage: this.state.currentPage,
+                targetPage: this.state.targetPage,
+                hasAccumulatedData: Object.keys(this.accumulatedData).length > 0
             });
+    
+            // 更新顯示視窗，按鈕會在 displayLabResults 中處理
+            await this.displayLabResults(this.accumulatedData);
             
         } catch (error) {
             console.error('自動翻頁過程發生錯誤:', error);
-        } finally {
             this.state.isProcessing = false;
             this.hideProcessingStatus();
         }
@@ -99,19 +131,22 @@ const labProcessor = {
 
     // 處理下一頁
     async processNextPage() {
-        console.log('處理下一頁...');
+        console.log('处理下一页...');
         await window.nextPagingHandler.handlePageChange(true);
         
-        // 等待新資料載入
+        // 等待新数据加载
         await new Promise(resolve => setTimeout(resolve, 1000));
         
-        // 獲取並合併資料
+        // 获取并合并数据
         const table = this.inspectLabTables();
         if (table) {
             const newData = this.analyzeLabData(table);
-            console.log('新頁面的資料:', newData);  // 新增除錯訊息
             this.mergeData(newData);
-            console.log('合併後的累積資料:', this.accumulatedData);  // 新增除錯訊息
+            console.log('页面处理状态:', {
+                currentPage: this.state.currentPage,
+                targetPage: this.state.targetPage,
+                dataSize: Object.keys(this.accumulatedData).length
+            });
         }
         
         this.state.currentPage++;
@@ -357,7 +392,7 @@ const labProcessor = {
             return {
                 date: cells[columnMap.檢驗日期]?.textContent.trim(),
                 testName: testName,
-                orderId: cells[columnMap.醫令代碼]?.textContent.trim() || '', // 新增醫令代碼
+                orderId: cells[columnMap.醫令代碼]?.textContent.trim() || '',
                 result: result,
                 reference: reference,
                 source: cells[columnMap.來源]?.textContent.trim()
@@ -601,7 +636,7 @@ const labProcessor = {
             console.error('沒有資料可以顯示');
             return;
         }
-
+    
         chrome.storage.sync.get({
             titleFontSize: '16',
             contentFontSize: '14',
@@ -614,7 +649,7 @@ const labProcessor = {
             labDisplayFormat: 'horizontal',
             enableLabAbbrev: true
         }, async (settings) => {
-            // 生成視窗容器
+            // 1. 創建主容器
             const displayDiv = document.createElement('div');
             displayDiv.id = 'lab-results-list';
             displayDiv.style.cssText = `
@@ -634,8 +669,7 @@ const labProcessor = {
                 flex-direction: column;
             `;
     
-            // 建立標題區域
-            // 修改標題區域
+            // 2. 創建標題區塊
             const headerDiv = document.createElement('div');
             headerDiv.style.cssText = `
                 background-color: #d3efff;
@@ -648,7 +682,7 @@ const labProcessor = {
                 align-items: center;
             `;
     
-            // 建立左側區域：包含標題和自動讀取按鈕
+            // 3. 創建左側區域
             const leftSection = document.createElement('div');
             leftSection.style.cssText = `
                 display: flex;
@@ -656,7 +690,7 @@ const labProcessor = {
                 gap: 10px;
             `;
     
-            // 建立標題
+            // 4. 創建標題
             const titleH3 = document.createElement('h3');
             titleH3.textContent = '檢驗報告記錄';
             titleH3.style.cssText = `
@@ -665,20 +699,50 @@ const labProcessor = {
                 padding: 0;
                 font-weight: bold;
             `;
-    
-            // 將標題添加到左側區域
             leftSection.appendChild(titleH3);
     
-            // 檢查是否為自動翻頁處理
+            // 5. 創建中間控制區
+            const middleControls = document.createElement('div');
+            middleControls.style.cssText = `
+                display: flex;
+                align-items: center;
+                margin-left: 15px;
+            `;
+            
+            // 在 middleControls 創建後立即檢查是否需要添加自動翻頁按鈕
             const isAutoPaging = window.autoPagingHandler && 
-                               window.autoPagingHandler.state.isProcessing;
-    
-            // 如果不是自動翻頁處理，則添加自動讀取按鈕
+                    window.autoPagingHandler.state.isProcessing;
+
             if (!isAutoPaging) {
-                await this.checkAndAddButton(titleH3);
+                // 檢查是否應該顯示自動翻頁按鈕
+                const shouldShowAutoPaging = await this.shouldShowButton();
+                if (shouldShowAutoPaging) {
+                    const autoPagingButton = this.createAutoPagingButton();
+                    middleControls.insertBefore(autoPagingButton, middleControls.firstChild);
+                }
+            }
+
+            // 6. 添加表格顯示按鈕
+            const groupingButton = await this.createGroupingButton();
+            if (groupingButton) {
+                middleControls.appendChild(groupingButton);
             }
     
-            // 建立右側控制區域
+            // 7. 處理自動翻頁相關
+            const isAccumulatedData = window.autoPagingHandler && 
+                                   window.autoPagingHandler.accumulatedData &&
+                                   Object.keys(window.autoPagingHandler.accumulatedData).length > 0;
+    
+            // if (isAccumulatedData) {
+            //     const newGroupingButton = await this.createGroupingButton();
+            //     if (newGroupingButton && !middleControls.querySelector('button')) {
+            //         middleControls.appendChild(newGroupingButton);
+            //     }
+            // }
+    
+            leftSection.appendChild(middleControls);
+    
+            // 8. 創建右側控制區
             const rightControls = document.createElement('div');
             rightControls.style.cssText = `
                 display: flex;
@@ -686,13 +750,13 @@ const labProcessor = {
                 gap: 15px;
             `;
     
-            // 添加分頁控制
+            // 9. 添加翻頁控制
             if (window.nextPagingHandler) {
                 const pagingControls = window.nextPagingHandler.createPagingControls();
                 rightControls.appendChild(pagingControls);
             }
     
-            // 關閉按鈕
+            // 10. 添加關閉按鈕
             const closeButton = document.createElement('button');
             closeButton.textContent = '×';
             closeButton.style.cssText = `
@@ -705,13 +769,13 @@ const labProcessor = {
                 line-height: 1;
             `;
             closeButton.onclick = () => displayDiv.remove();
-    
-            // 組裝標題區域
-            headerDiv.appendChild(leftSection);
-            headerDiv.appendChild(rightControls);
             rightControls.appendChild(closeButton);
     
-            // 建立內容區域
+            // 11. 組裝標題區域
+            headerDiv.appendChild(leftSection);
+            headerDiv.appendChild(rightControls);
+    
+            // 12. 創建內容區域
             const contentDiv = document.createElement('div');
             contentDiv.style.cssText = `
                 flex-grow: 1;
@@ -719,28 +783,32 @@ const labProcessor = {
                 padding-right: 5px;
             `;
     
-            // 載入縮寫設定（如果啟用）
+            // 13. 載入縮寫設定
             let abbreviations = {};
             let enabled = false;
-            console.log('檢查縮寫設定狀態:', {
-                enableLabAbbrev: settings.enableLabAbbrev,
-                managerExists: !!window.labAbbreviationManager
-            });
-
+    
             if (settings.enableLabAbbrev && window.labAbbreviationManager) {
-                console.log('準備載入檢驗縮寫設定');
                 try {
                     const abbrevResult = await window.labAbbreviationManager.loadAbbreviations();
-                    console.log('載入到的縮寫設定:', abbrevResult);
                     abbreviations = abbrevResult.abbreviations;
                     enabled = abbrevResult.enabled;
-                    console.log('合併後的縮寫列表:', Object.entries(abbreviations));
                 } catch (error) {
                     console.error('載入檢驗縮寫失敗:', error);
                 }
-            } else {
-                console.log('縮寫功能未啟用或管理器未載入');
             }
+    
+            // 14. 最終組裝
+            displayDiv.appendChild(headerDiv);
+            displayDiv.appendChild(contentDiv);
+    
+            // 15. 移除現有視窗
+            // const existingDiv = document.getElementById('lab-results-list');
+            // if (existingDiv) {
+            //     existingDiv.remove();
+            // }
+    
+            // 16. 添加到頁面
+            document.body.appendChild(displayDiv);
 
             // 處理並顯示檢驗數據
             Object.entries(groupedData)

@@ -152,12 +152,12 @@ const medicineProcessor = {
         if (!dosage || !frequency || !days) return '';
         
         const frequencyMap = {
-            'QD': 1, 'BID': 2, 'TID': 3, 'QID': 4,
+            'QD': 1,'QDP': 1,'QAM': 1,'QPM': 1, 'BID': 2,'BIDP': 2, 'TID': 3,'TIDP': 3, 'QID': 4,'QIDP': 4,
             'Q2H': 12, 'Q4H': 6, 'Q6H': 4, 'Q8H': 3,
-            'Q12H': 2, 'HS': 1, 'PRN': 1, 'DAILY': 1, 'QN': 1, 'STAT':1, 'ST':1 
+            'Q12H': 2, 'HS': 1,'HSP': 1, 'DAILY': 1, 'QN': 1, 'STAT':1, 'ST':1 
         };
 
-        const freqMatch = frequency.toUpperCase().match(/QD|BID|TID|QID|Q2H|Q4H|Q6H|Q8H|Q12H|HS|PRN|DAILY/);
+        const freqMatch = frequency.toUpperCase().match(/QD|QDP|BID|BIDP|TID|TIDP|QID|QIDP|Q2H|Q4H|Q6H|Q8H|Q12H|HS|HSP|PRN|QOD|TIW|BIW|QW|DAILY/);
         if (!freqMatch && !frequency.includes('需要時')) {
             console.log('無法識別的頻次:', frequency);
             return 'SPECIAL';

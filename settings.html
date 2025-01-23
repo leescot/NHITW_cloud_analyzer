@@ -148,6 +148,125 @@
             gap: 10px;
             margin-top: 10px;
         }
+
+        .dialog-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 10000;
+            display: none;
+            /* 確保對話框總是在視窗內 */
+            overflow-y: auto;
+        }
+
+        .dialog-content {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 24px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            width: 900px;
+            max-width: 90vw;
+            max-height: 90vh;
+            /* 新增內容溢出時的滾動控制 */
+            overflow-y: auto;
+            
+            /* 確保不會超出視窗範圍 */
+            margin: 20px auto;
+        }
+
+        /* 當視窗較小時的響應式調整 */
+        @media (max-height: 800px) {
+            .dialog-content {
+                top: 0;
+                transform: translate(-50%, 0);
+                margin-top: 20px;
+                margin-bottom: 20px;
+                max-height: calc(100vh - 40px);
+            }
+        }
+
+        /* 更新內容容器的樣式 */
+        .config-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+
+        .priority-section, .special-section {
+            background: #f8f9fa;
+            padding: 16px;
+            border-radius: 8px;
+            height: fit-content;
+        }
+
+        /* 確保按鈕區域固定在底部 */
+        .dialog-buttons {
+            position: sticky;
+            bottom: 0;
+            background: white;
+            padding-top: 16px;
+            margin-top: 16px;
+            border-top: 1px solid #eee;
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
+        .dialog-buttons button {
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        #save-lab-config {
+            background: #2196F3;
+            color: white;
+            border: none;
+        }
+
+        #close-lab-config {
+            background: #f0f0f0;
+            border: 1px solid #ddd;
+        }
+
+        .item-tag {
+            display: inline-block;
+            background: #fff;
+            padding: 6px 10px;
+            border-radius: 4px;
+            margin: 4px;
+            border: 1px solid #2196F3;
+            color: #2196F3;
+            font-size: 14px;
+        }
+
+        .item-tag .remove-item {
+            margin-left: 8px;
+            cursor: pointer;
+            color: #2196F3;
+            font-weight: bold;
+        }
+
+        .item-tag:hover {
+            background: #f8f9fa;
+        }
+
+        .items-list {
+            margin: 12px 0;
+            min-height: 40px;
+            padding: 8px;
+            border: 1px dashed #ccc;
+            border-radius: 4px;
+            background: #fafafa;
+        }
     </style>
 </head>
 <body>
@@ -248,6 +367,14 @@
                 <button id="manageLabAbbrev" class="secondary-button">
                     管理檢驗項目縮寫
                 </button>
+                <br><br>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="enableLabGrouping">
+                    開啟檢驗表格顯示 (需開啟欄位「醫令代碼」)
+                </label>
+                <button id="configureLabTable" class="secondary-button" style="display: none;">
+                    表格內容設定
+                </button>
             </div>
 
             <div class="setting-group">
@@ -307,8 +434,103 @@
         <button id="saveButton" class="save-button">儲存設定</button>
         <div id="saveStatus" class="save-status">設定已儲存！</div>
     </div>
+    <div id="lab-table-config-dialog" style="display: none;" class="dialog-overlay">
+        <div class="dialog-content">
+            <h2>檢驗表格內容設定</h2>
+            
+            <div class="config-container">
+                <!-- Left side: Priority codes -->
+                <div class="priority-section">
+                    <h3>檢驗項目優先順序</h3>
+                    <p class="note">可設定最多20項檢驗的醫令代碼，這些項目會優先顯示在表格上方</p>
+                    <div id="priority-codes-list"></div>
+                    <div class="input-group">
+                        <input type="text" id="new-priority-code" placeholder="輸入醫令代碼">
+                        <button id="add-priority-code">新增</button>
+                    </div>
+                </div>
+    
+                <!-- Right side: Special items -->
+                <div class="special-section">
+                    <h3>特殊項目顯示設定</h3>
+                    
+                    <div class="special-item">
+                        <h4>醫令代碼 06012C 尿一般檢查:</h4>
+                        <div class="radio-group">
+                            <label>
+                                <input type="radio" name="code06012C-display" value="all"> 顯示全部項目
+                            </label>
+                            <label>
+                                <input type="radio" name="code06012C-display" value="none"> 不顯示全部項目
+                            </label>
+                            <label>
+                                <input type="radio" name="code06012C-display" value="partial"> 顯示部份項目
+                            </label>
+                        </div>
+                        <div id="code06012C-items" class="partial-items" style="display: none;">
+                            <div class="items-list"></div>
+                            <div class="input-group">
+                                <input type="text" placeholder="輸入要顯示的項目名稱">
+                                <button class="add-item">新增</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="special-item">
+                        <h4>醫令代碼 08011C 全套血液檢查:</h4>
+                        <div class="radio-group">
+                            <label>
+                                <input type="radio" name="code08011C-display" value="all"> 顯示全部項目
+                            </label>
+                            <label>
+                                <input type="radio" name="code08011C-display" value="none"> 不顯示全部項目
+                            </label>
+                            <label>
+                                <input type="radio" name="code08011C-display" value="partial"> 顯示部份項目
+                            </label>
+                        </div>
+                        <div id="code08011C-items" class="partial-items" style="display: none;">
+                            <div class="items-list"></div>
+                            <div class="input-group">
+                                <input type="text" placeholder="輸入要顯示的項目名稱">
+                                <button class="add-item">新增</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="special-item">
+                        <h4>醫令代碼 08013C 白血球分類計數:</h4>
+                        <div class="radio-group">
+                            <label>
+                                <input type="radio" name="code08013C-display" value="all"> 顯示全部項目
+                            </label>
+                            <label>
+                                <input type="radio" name="code08013C-display" value="none"> 不顯示全部項目
+                            </label>
+                            <label>
+                                <input type="radio" name="code08013C-display" value="partial"> 顯示部份項目
+                            </label>
+                        </div>
+                        <div id="code08013C-items" class="partial-items" style="display: none;">
+                            <div class="items-list"></div>
+                            <div class="input-group">
+                                <input type="text" placeholder="輸入要顯示的項目名稱">
+                                <button class="add-item">新增</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+    
+            <div class="dialog-buttons">
+                <button id="save-lab-config">儲存</button>
+                <button id="close-lab-config">取消</button>
+            </div>
+        </div>
+    </div>
     <script src="labAbbreviations.js"></script>
     <script src="atc5ColorManager.js"></script>
+    <script src="labTableConfig.js"></script>
     <script src="settings.js"></script>
 </body>
 </html>
