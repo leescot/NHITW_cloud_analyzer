@@ -209,7 +209,7 @@ const labGroupingHandler = {
             padding: 20px;
             border-radius: 8px;
             box-shadow: 0 2px 15px rgba(0,0,0,0.2);
-            width: 100vh;
+            width: 80%;
             height: 80vh;
             z-index: 10002;
             display: flex;

@@ -131,26 +131,38 @@ const labProcessor = {
 
     // 處理下一頁
     async processNextPage() {
-        console.log('处理下一页...');
-        await window.nextPagingHandler.handlePageChange(true);
-        
-        // 等待新数据加载
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // 获取并合并数据
-        const table = this.inspectLabTables();
-        if (table) {
-            const newData = this.analyzeLabData(table);
-            this.mergeData(newData);
-            console.log('页面处理状态:', {
-                currentPage: this.state.currentPage,
-                targetPage: this.state.targetPage,
-                dataSize: Object.keys(this.accumulatedData).length
-            });
+        try {
+            console.log('處理下一頁...');
+            await window.nextPagingHandler.handlePageChange(true);
+            
+            // 等待新数据加载
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // 获取并合并数据
+            const table = this.inspectLabTables();
+            if (table) {
+                const newData = this.analyzeLabData(table);
+                if (newData) {
+                    this.mergeData(newData);
+                    console.log('頁面處理狀態:', {
+                        currentPage: this.state.currentPage,
+                        targetPage: this.state.targetPage,
+                        dataSize: Object.keys(this.accumulatedData).length,
+                        isProcessing: this.state.isProcessing
+                    });
+                } else {
+                    console.error('無法分析新頁面的數據');
+                }
+            } else {
+                console.error('無法找到數據表格');
+            }
+            
+            this.state.currentPage++;
+            this.updateProcessingStatus();
+        } catch (error) {
+            console.error('處理下一頁時發生錯誤:', error);
+            throw error; // 向上傳遞錯誤，讓上層處理
         }
-        
-        this.state.currentPage++;
-        this.updateProcessingStatus();
     },
 
     // 顯示處理中狀態
@@ -306,6 +318,18 @@ const labProcessor = {
         
         // 清理暫存的資料
         this.currentData = null;
+
+        // 清理累積的資料
+        this.accumulatedData = {};
+        console.log('已清理累積的檢驗資料');
+
+        // 重置處理狀態
+        this.state = {
+            isProcessing: false,
+            currentPage: 1,
+            targetPage: 1
+        };
+        console.log('已重置檢驗處理狀態');
     },
     
     // 檢查所有表格
@@ -1031,20 +1055,41 @@ const labProcessor = {
     // 修改 initialize 方法
     async initialize() {
         console.log('開始初始化檢驗報告處理功能');
-        this.cleanup();
+        
+        // 檢查是否正在執行自動翻頁處理
+        const isAutoPaging = this.state.isProcessing;
+        console.log('檢查是否為自動翻頁處理:', {
+            isProcessing: this.state.isProcessing,
+            currentPage: this.state.currentPage,
+            targetPage: this.state.targetPage
+        });
+    
+        // 只有在非自動翻頁時才執行清理
+        if (!isAutoPaging) {
+            console.log('非自動翻頁處理，執行清理');
+            this.cleanup();
+        } else {
+            console.log('自動翻頁處理中，保留資料');
+        }
         
         try {
             const table = this.inspectLabTables();
             if (table) {
                 const data = this.analyzeLabData(table);
                 if (data && Object.keys(data).length > 0) {
-                    this.currentData = data;
-                    await this.displayLabResults(data);
-                    this.listenToPageChanges();
+                    // 根據處理狀態決定是否合併資料
+                    if (isAutoPaging) {
+                        console.log('自動翻頁中，合併新資料');
+                        this.mergeData(data);
+                    } else {
+                        console.log('非自動翻頁，設置新資料');
+                        this.currentData = data;
+                    }
     
-                    // 檢查是否為自動翻頁處理
-                    const isAutoPaging = window.autoPagingHandler && 
-                                       window.autoPagingHandler.state.isProcessing;
+                    // 顯示適當的資料
+                    const displayData = isAutoPaging ? this.accumulatedData : data;
+                    await this.displayLabResults(displayData);
+                    this.listenToPageChanges();
     
                     // 如果不是自動翻頁處理，才進行按鈕檢查
                     if (!isAutoPaging) {

@@ -134,15 +134,22 @@ const nextPagingHandler = {
         if (button) {
             console.log(isNext ? '點擊下一頁按鈕' : '點擊上一頁按鈕');
             
-            // 在點擊前先移除所有現有的處理器
-            if (window.medicineProcessor && window.medicineProcessor.cleanup) {
-                window.medicineProcessor.cleanup();
-            }
-            if (window.labProcessor && window.labProcessor.cleanup) {
-                window.labProcessor.cleanup();
-            }
-            if (window.imageProcessor && window.imageProcessor.cleanup) {
-                window.imageProcessor.cleanup();
+            // 檢查是否正在執行自動翻頁
+            const isAutoPaging = 
+                (window.medicineProcessor && window.autoPagingHandler?.state.isProcessing) ||
+                (window.labProcessor && window.labProcessor.state?.isProcessing);
+
+            // 只有在非自動翻頁時才清理資料
+            if (!isAutoPaging) {
+                if (window.medicineProcessor && window.medicineProcessor.cleanup) {
+                    window.medicineProcessor.cleanup();
+                }
+                if (window.labProcessor && window.labProcessor.cleanup) {
+                    window.labProcessor.cleanup();
+                }
+                if (window.imageProcessor && window.imageProcessor.cleanup) {
+                    window.imageProcessor.cleanup();
+                }
             }
             
             button.click();

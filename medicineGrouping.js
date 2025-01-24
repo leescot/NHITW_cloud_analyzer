@@ -209,7 +209,7 @@ const medicineGroupingHandler = {
                     padding: 12px;
                     text-align: center;
                     border: 1px solid #e0e0e0;
-                    min-width: 120px;
+                    min-width: 90px;
                     background-color: #f5f5f5;
                     position: sticky;
                     top: 0;
