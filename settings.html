@@ -171,8 +171,8 @@
             padding: 24px;
             border-radius: 8px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-            width: 900px;
-            max-width: 90vw;
+            width: 1100px;  /* 調整總寬度 */
+            max-width: 95vw;
             max-height: 90vh;
             /* 新增內容溢出時的滾動控制 */
             overflow-y: auto;
@@ -195,18 +195,31 @@
         /* 更新內容容器的樣式 */
         .config-container {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: 30% 35% 30%;  /* 左中右三欄分配 */
             gap: 24px;
             margin-bottom: 24px;
         }
 
-        .priority-section, .special-section {
+        .priority-section, .name-mapping-section, .special-section {
             background: #f8f9fa;
             padding: 16px;
             border-radius: 8px;
             height: fit-content;
         }
 
+        /* 確保各區塊的寬度限制 */
+        .priority-section {
+            max-width: 300px;
+        }
+
+        .name-mapping-section {
+            max-width: 350px;
+        }
+
+        .special-section {
+            max-width: 300px;
+        }
+        
         /* 確保按鈕區域固定在底部 */
         .dialog-buttons {
             position: sticky;
@@ -240,12 +253,12 @@
         .item-tag {
             display: inline-block;
             background: #fff;
-            padding: 6px 10px;
+            padding: 4px 8px;  /* 從 6px 10px 改成 4px 8px */
             border-radius: 4px;
-            margin: 4px;
+            margin: 2px;  /* 從 4px 改成 2px */
             border: 1px solid #2196F3;
             color: #2196F3;
-            font-size: 14px;
+            font-size: 13px;  /* 從 14px 改成 13px */
         }
 
         .item-tag .remove-item {
@@ -260,13 +273,111 @@
         }
 
         .items-list {
-            margin: 12px 0;
-            min-height: 40px;
-            padding: 8px;
+            margin: 8px 0;  /* 從 12px 改成 8px */
+            min-height: 32px;  /* 從 40px 改成 32px */
+            padding: 4px;  /* 從 8px 改成 4px */
             border: 1px dashed #ccc;
             border-radius: 4px;
             background: #fafafa;
         }
+
+        .input-group {
+            margin-top: 6px;  /* 新增一點上方間距 */
+            display: flex;
+            gap: 8px;
+        }
+
+        .warning {
+            color: #856404;
+            background-color: #fff3cd;
+            padding: 8px;
+            border-radius: 4px;
+            margin: 8px 0;
+            font-size: 14px;
+        }
+
+        .name-mapping-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px;
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            margin-bottom: 8px;
+        }
+
+        .name-mapping-item .remove-mapping {
+            color: #dc3545;
+            cursor: pointer;
+            padding: 2px 6px;
+            border: none;
+            background: none;
+            font-weight: bold;
+        }
+
+        /* 拖拉功能 */
+        .priority-code {
+            display: flex;
+            align-items: center;
+            padding: 6px 10px;
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            margin-bottom: 6px;
+            cursor: grab;
+            user-select: none;
+            transition: all 0.2s ease;
+            gap: 8px;
+        }
+
+        .priority-code:hover {
+            border-color: #2196F3;
+            background: #f8f9fa;
+        }
+
+        .priority-code:active {
+            cursor: grabbing;
+        }
+
+        .priority-code.dragging {
+            opacity: 0.5;
+            background: #f5f5f5;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .drag-handle {
+            color: #999;
+            display: flex;
+            align-items: center;
+        }
+
+        .drag-handle svg {
+            width: 12px;  /* 縮小圖示 */
+            height: 12px;
+        }
+
+        .priority-code-content {
+            flex: 1;
+            font-size: 14px;
+            color: #333;
+        }
+
+        .priority-code .remove-code {
+            color: #666;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 16px;
+            padding: 0 4px;
+            opacity: 0.6;
+            line-height: 1;
+        }
+
+        .priority-code:hover .remove-code {
+            opacity: 1;
+        }
+
     </style>
 </head>
 <body>
@@ -437,12 +548,13 @@
     <div id="lab-table-config-dialog" style="display: none;" class="dialog-overlay">
         <div class="dialog-content">
             <h2>檢驗表格內容設定</h2>
+            <h3>檢驗醫令代碼查詢: <a href="https://info.nhi.gov.tw/INAE5000/INAE5001S01" target="_blank">https://info.nhi.gov.tw/INAE5000/INAE5001S01</a></h3>
             
             <div class="config-container">
                 <!-- Left side: Priority codes -->
                 <div class="priority-section">
-                    <h3>檢驗項目優先順序</h3>
-                    <p class="note">可設定最多20項檢驗的醫令代碼，這些項目會優先顯示在表格上方</p>
+                    <h3>檢驗項目顯示的優先順位</h3>
+                    <p class="note">可設定最多20項檢驗的醫令代碼優先顯示在表格上方</p>
                     <div id="priority-codes-list"></div>
                     <div class="input-group">
                         <input type="text" id="new-priority-code" placeholder="輸入醫令代碼">
@@ -450,9 +562,21 @@
                     </div>
                 </div>
     
+                <!-- 中間：新增醫令代碼名稱對照設定 -->
+                <div class="name-mapping-section">
+                    <h3>單一醫令代碼統一名稱對照表</h3>
+                    <p class="note warning">注意：此功能僅適用於單一醫令代碼對應單一檢驗項目的情況，例如將 09025C 設定顯示為GOT，不管原始院所設定什麼名稱，統一以設定的對照表來顯示。不適用於如 08011C(全套血液檢查) 這類包含多個項目的醫令代碼。</p>
+                    <div id="name-mapping-list" class="items-list"></div>
+                    <div class="input-group">
+                        <input type="text" id="new-mapping-code" placeholder="醫令代碼" style="width: 100px;">
+                        <input type="text" id="new-mapping-name" placeholder="顯示名稱">
+                        <button id="add-name-mapping">新增</button>
+                    </div>
+                </div>
+
                 <!-- Right side: Special items -->
                 <div class="special-section">
-                    <h3>特殊項目顯示設定</h3>
+                    <h3>U/A 及 CBC 項目顯示設定</h3>
                     
                     <div class="special-item">
                         <h4>醫令代碼 06012C 尿一般檢查:</h4>

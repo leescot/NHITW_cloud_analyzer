@@ -16,9 +16,45 @@ class LabTableConfigManager {
                     displayMode: 'all',
                     partialItems: []
                 }
-            }
+            },
+            // 新增醫令代碼名稱對照設定
+            nameMappings: {}  // 格式: { "09025C": "GOT" }
         };
         this.config = { ...this.defaultConfig };
+    }
+
+    // 新增名稱對照相關方法
+    async addNameMapping(code, name) {
+        if (!code || !name) return false;
+        
+        const normalizedCode = code.trim().toUpperCase();
+        const normalizedName = name.trim();
+        
+        // 檢查是否為多項目的醫令代碼
+        if (['08011C', '08013C', '06012C'].includes(normalizedCode)) {
+            console.warn('不可設定多項目醫令代碼的名稱對照');
+            return false;
+        }
+        
+        this.config.nameMappings[normalizedCode] = normalizedName;
+        await this.saveConfig(this.config);
+        return true;
+    }
+
+    async removeNameMapping(code) {
+        const normalizedCode = code.trim().toUpperCase();
+        if (this.config.nameMappings[normalizedCode]) {
+            delete this.config.nameMappings[normalizedCode];
+            await this.saveConfig(this.config);
+            return true;
+        }
+        return false;
+    }
+
+    // 取得名稱對照
+    getDisplayName(code, originalName) {
+        const normalizedCode = code.trim().toUpperCase();
+        return this.config.nameMappings[normalizedCode] || originalName;
     }
 
     async loadConfig() {

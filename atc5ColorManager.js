@@ -82,6 +82,8 @@ function createATC5ColorDialog() {
     
     dialog.innerHTML = `
         <h2>管理 ATC5碼 顏色對照</h2>
+        <h3>ATC查詢: <a href="https://atcddd.fhi.no/atc_ddd_index/" target="_blank">https://atcddd.fhi.no/atc_ddd_index/</a></h3>
+            
         
         <div class="atc5-color-section">
             <h3 style="color: red;">紅色 (NSAID)</h3>

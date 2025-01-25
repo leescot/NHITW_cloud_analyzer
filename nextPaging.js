@@ -135,15 +135,10 @@ const nextPagingHandler = {
             console.log(isNext ? '點擊下一頁按鈕' : '點擊上一頁按鈕');
             
             // 檢查是否正在執行自動翻頁
-            const isAutoPaging = 
-                (window.medicineProcessor && window.autoPagingHandler?.state.isProcessing) ||
-                (window.labProcessor && window.labProcessor.state?.isProcessing);
-
+            const isLabAutoPaging = window.labProcessor && window.labProcessor.state?.isProcessing;
+    
             // 只有在非自動翻頁時才清理資料
-            if (!isAutoPaging) {
-                if (window.medicineProcessor && window.medicineProcessor.cleanup) {
-                    window.medicineProcessor.cleanup();
-                }
+            if (!isLabAutoPaging) {
                 if (window.labProcessor && window.labProcessor.cleanup) {
                     window.labProcessor.cleanup();
                 }
@@ -160,17 +155,17 @@ const nextPagingHandler = {
             // 更新頁面資訊
             this.updatePaginationInfo();
             
-            // 重新初始化相應的處理器
-            try {
-                if (window.location.href.includes('IMUE0008')) {
-                    await window.medicineProcessor.initialize();
-                } else if (window.location.href.includes('IMUE0060')) {
-                    await window.labProcessor.initialize();
-                } else if (window.location.href.includes('IMUE0130')) {
-                    await window.imageProcessor.handleButtonClick();
+            // 只在非自動翻頁模式下重新初始化處理器
+            if (!isLabAutoPaging) {
+                try {
+                    if (window.location.href.includes('IMUE0060')) {
+                        await window.labProcessor.initialize();
+                    } else if (window.location.href.includes('IMUE0130')) {
+                        await window.imageProcessor.handleButtonClick();
+                    }
+                } catch (error) {
+                    console.error('處理器初始化失敗:', error);
                 }
-            } catch (error) {
-                console.error('處理器初始化失敗:', error);
             }
         }
     },

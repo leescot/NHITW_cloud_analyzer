@@ -119,7 +119,7 @@ const medicineProcessor = {
             z-index: 10000;
             font-size: 14px;
         `;
-        warningDiv.textContent = '請先開啟「ATC5代碼」欄位';
+        warningDiv.textContent = '請先新增「ATC5代碼」欄位到右方(右上角"更多"->"表格欄位設定")';
         document.body.appendChild(warningDiv);
 
         setTimeout(() => warningDiv.remove(), 5000);

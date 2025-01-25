@@ -65,7 +65,7 @@ const labGroupingHandler = {
     async initializeConfig() {
         // 等待 labTableConfigManager 載入
         if (!window.labTableConfigManager) {
-            console.log('等待 labTableConfigManager 初始化...');
+            // console.log('等待 labTableConfigManager 初始化...');
             await new Promise(resolve => {
                 const checkInterval = setInterval(() => {
                     if (window.labTableConfigManager) {
@@ -88,30 +88,78 @@ const labGroupingHandler = {
         }
     },
 
+    async normalizeTestName(testName) {
+        // 檢查是否啟用縮寫功能
+        if (!window.labAbbreviationManager) {
+            return testName;
+        }
+    
+        const { abbreviations, enabled } = await window.labAbbreviationManager.loadAbbreviations();
+        if (!enabled) {
+            return testName;
+        }
+    
+        // 檢查是否有對應的縮寫
+        const abbrev = abbreviations[testName];
+        if (!abbrev) {
+            return testName;
+        }
+    
+        // 返回標準化的名稱
+        return abbrev;
+    },
+
     // 整理檢驗資料
     async categorizeLabTests(labData) {
-        // 確保配置已初始化
         await this.initializeConfig();
         
         try {
             const { config } = await window.labTableConfigManager.loadConfig();
             const groupedTests = new Map();
             
-            // First, process all data and apply special items filtering
+            // 建立檢驗項目的原始順序映射
+            const originalOrder = new Map();
+            if (Object.values(labData)[0]) {
+                Object.values(labData)[0].forEach((test, index) => {
+                    const key = `${test.testName}_${test.orderId}`;
+                    originalOrder.set(key, index);
+                });
+            }
+            
+            // 處理所有資料
             for (const dateGroup of Object.values(labData)) {
                 const filteredTests = await this.filterSpecialItems(dateGroup);
                 
                 for (const test of filteredTests) {
-                    const key = `${test.testName}_${test.orderId}`;
+                    // 檢查該醫令代碼是否有設定統一顯示名稱
+                    const hasNameMapping = config.nameMappings && config.nameMappings[test.orderId];
+                    
+                    // 決定要使用的 key
+                    let key;
+                    let displayName;
+                    
+                    if (hasNameMapping) {
+                        // 如果有設定統一顯示名稱，使用醫令代碼作為 key
+                        key = `${test.orderId}`;
+                        displayName = config.nameMappings[test.orderId];
+                    } else {
+                        // 如果沒有設定統一顯示名稱，使用檢驗項目名稱和醫令代碼的組合作為 key
+                        displayName = await this.normalizeTestName(test.testName);
+                        key = `${displayName}_${test.orderId}`;
+                    }
                     
                     if (!groupedTests.has(key)) {
                         groupedTests.set(key, {
-                            name: test.testName,
+                            name: displayName,
+                            originalNames: new Set([test.testName]),
                             orderId: test.orderId,
                             dates: new Map()
                         });
+                    } else {
+                        // 添加原始名稱到集合中
+                        groupedTests.get(key).originalNames.add(test.testName);
                     }
-        
+                    
                     const group = groupedTests.get(key);
                     if (!group.dates.has(test.date)) {
                         group.dates.set(test.date, {
@@ -121,54 +169,35 @@ const labGroupingHandler = {
                     }
                 }
             }
-        
-            // Convert to array for sorting
+            
+            // 轉換為陣列進行排序
             let testsArray = Array.from(groupedTests.entries());
-        
-            // Sort based on priority codes
-            if (config?.priorityCodes) {
-                testsArray.sort((a, b) => {
-                    const aIndex = config.priorityCodes.indexOf(a[1].orderId);
-                    const bIndex = config.priorityCodes.indexOf(b[1].orderId);
-                    
-                    if (aIndex !== -1 && bIndex !== -1) {
-                        return aIndex - bIndex;
-                    } else if (aIndex !== -1) {
-                        return -1;
-                    } else if (bIndex !== -1) {
-                        return 1;
-                    }
-                    
-                    return 0;
-                });
-            }
-        
-            // Convert back to Map maintaining the new order
+            
+            // 根據優先順序和原始順序進行排序
+            testsArray.sort((a, b) => {
+                const aIndex = config.priorityCodes.indexOf(a[1].orderId);
+                const bIndex = config.priorityCodes.indexOf(b[1].orderId);
+                
+                // 先檢查優先順序
+                if (aIndex !== -1 && bIndex !== -1) {
+                    return aIndex - bIndex;
+                } else if (aIndex !== -1) {
+                    return -1;
+                } else if (bIndex !== -1) {
+                    return 1;
+                }
+                
+                // 如果都不在優先順序中，使用原始順序
+                const aKey = `${a[1].originalNames.values().next().value}_${a[1].orderId}`;
+                const bKey = `${b[1].originalNames.values().next().value}_${b[1].orderId}`;
+                return (originalOrder.get(aKey) || 0) - (originalOrder.get(bKey) || 0);
+            });
+            
+            // 轉換回 Map 保持排序
             return new Map(testsArray);
         } catch (error) {
             console.error('處理檢驗數據時發生錯誤:', error);
-            // 發生錯誤時返回原始分組
-            const groupedTests = new Map();
-            for (const dateGroup of Object.values(labData)) {
-                for (const test of dateGroup) {
-                    const key = `${test.testName}_${test.orderId}`;
-                    if (!groupedTests.has(key)) {
-                        groupedTests.set(key, {
-                            name: test.testName,
-                            orderId: test.orderId,
-                            dates: new Map()
-                        });
-                    }
-                    const group = groupedTests.get(key);
-                    if (!group.dates.has(test.date)) {
-                        group.dates.set(test.date, {
-                            result: test.result,
-                            reference: test.reference
-                        });
-                    }
-                }
-            }
-            return groupedTests;
+            return new Map();
         }
     },
 

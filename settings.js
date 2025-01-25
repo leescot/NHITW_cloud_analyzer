@@ -81,6 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    
     // 檢驗表格設定相關
     const enableLabGroupingCheck = document.getElementById('enableLabGrouping');
     const configureLabTableBtn = document.getElementById('configureLabTable');
@@ -93,6 +94,50 @@ document.addEventListener('DOMContentLoaded', () => {
         configureLabTableBtn.style.display = e.target.checked ? 'block' : 'none';
     });
 
+    // 新增名稱對照按鈕點擊事件
+    const addMappingBtn = document.getElementById('add-name-mapping');
+    if (addMappingBtn) {
+        addMappingBtn.onclick = async () => {
+            const codeInput = document.getElementById('new-mapping-code');
+            const nameInput = document.getElementById('new-mapping-name');
+            
+            const code = codeInput.value.trim();
+            const name = nameInput.value.trim();
+            
+            if (code && name && window.labTableConfigManager) {
+                if (await window.labTableConfigManager.addNameMapping(code, name)) {
+                    addNameMappingToList(code, name);
+                    codeInput.value = '';
+                    nameInput.value = '';
+                }
+            }
+        };
+    }
+
+    // 為名稱對照的輸入框添加 Enter 鍵處理
+    const mappingCodeInput = document.getElementById('new-mapping-code');
+    const mappingNameInput = document.getElementById('new-mapping-name');
+
+    if (mappingCodeInput && mappingNameInput) {
+        const handleEnterKey = async (e) => {
+            if (e.key === 'Enter') {
+                const code = mappingCodeInput.value.trim();
+                const name = mappingNameInput.value.trim();
+                
+                if (code && name && window.labTableConfigManager) {
+                    if (await window.labTableConfigManager.addNameMapping(code, name)) {
+                        addNameMappingToList(code, name);
+                        mappingCodeInput.value = '';
+                        mappingNameInput.value = '';
+                    }
+                }
+            }
+        };
+
+        mappingCodeInput.addEventListener('keypress', handleEnterKey);
+        mappingNameInput.addEventListener('keypress', handleEnterKey);
+    }
+
     // 打開設定對話框
     configureLabTableBtn.addEventListener('click', async () => {
         if (!window.labTableConfigManager) {
@@ -102,6 +147,15 @@ document.addEventListener('DOMContentLoaded', () => {
     
         const { config } = await window.labTableConfigManager.loadConfig();
         
+        // 初始化名稱對照列表
+        const mappingList = document.getElementById('name-mapping-list');
+        if (mappingList) {
+            mappingList.innerHTML = '';
+            Object.entries(config.nameMappings || {}).forEach(([code, name]) => {
+                addNameMappingToList(code, name);
+            });
+        }
+
         // 初始化優先順序列表
         const priorityList = document.getElementById('priority-codes-list');
         if (priorityList) {
@@ -140,9 +194,38 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         });
-    
+        
         configDialog.style.display = 'block';
+
+        // 初始化拖放功能
+        initializeDragAndDrop();
     });
+
+    function addNameMappingToList(code, name) {
+        const mappingList = document.getElementById('name-mapping-list');
+        if (!mappingList) return;
+    
+        const item = document.createElement('div');
+        item.className = 'name-mapping-item';
+        item.innerHTML = `
+            <span style="width: 100px;">${code}</span>
+            <span style="flex: 1;">${name}</span>
+            <button class="remove-mapping" title="移除">×</button>
+        `;
+    
+        // 處理移除按鈕點擊事件
+        const removeBtn = item.querySelector('.remove-mapping');
+        if (removeBtn) {
+            removeBtn.onclick = async () => {
+                if (window.labTableConfigManager) {
+                    await window.labTableConfigManager.removeNameMapping(code);
+                    item.remove();
+                }
+            };
+        }
+    
+        mappingList.appendChild(item);
+    }
 
     // 處理優先順序代碼
     document.getElementById('add-priority-code').addEventListener('click', async () => {
@@ -150,7 +233,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const code = input.value.trim();
         
         if (code && await window.labTableConfigManager.addPriorityCode(code)) {
-            addPriorityCodeToList(code);
+            // 取得目前清單中的項目數量作為新項目的索引
+            const currentIndex = document.querySelectorAll('.priority-code').length;
+            addPriorityCodeToList(code, currentIndex);
             input.value = '';
         }
     });
@@ -214,12 +299,22 @@ document.addEventListener('DOMContentLoaded', () => {
     // 儲存設定
     saveConfigBtn.addEventListener('click', async () => {
         const newConfig = {
-            priorityCodes: Array.from(document.querySelectorAll('.priority-code span'))
-                .map(span => span.textContent),
-            specialItems: {}
+            // 只收集 priority-code-content 中的代碼部分
+            priorityCodes: Array.from(document.querySelectorAll('.priority-code-content'))
+                .map(span => span.textContent.split('-')[1].trim()),
+            specialItems: {},
+            nameMappings: {}
         };
     
-        ['06012C', '08011C', '08013C'].forEach(code => {  // 加入 08013C
+        // 收集名稱對照設定
+        document.querySelectorAll('.name-mapping-item').forEach(item => {
+            const code = item.querySelector('span:first-child').textContent;
+            const name = item.querySelector('span:nth-child(2)').textContent;
+            newConfig.nameMappings[code] = name;
+        });
+    
+        // 收集特殊項目設定
+        ['06012C', '08011C', '08013C'].forEach(code => {
             const codeId = `code${code}`;
             const displayMode = document.querySelector(`input[name="${codeId}-display"]:checked`)?.value || 'all';
             const partialItems = Array.from(
@@ -335,65 +430,55 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // 輔助函數
-function addPriorityCodeToList(code, index) {
+function addPriorityCodeToList(code, index = null) {
     const priorityList = document.getElementById('priority-codes-list');
     if (!priorityList) return;
 
+    // 如果沒有提供 index，則使用目前清單的長度
+    if (index === null) {
+        index = priorityList.querySelectorAll('.priority-code').length;
+    }
+
     const item = document.createElement('div');
     item.className = 'priority-code';
+    item.draggable = true;
+    item.dataset.code = code;
+    
     item.innerHTML = `
-        <div class="priority-code-number">${index + 1}</div>
-        <span>${code}</span>
-        <div class="move-buttons">
-            <button class="move-up" title="上移">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M12 19V5M5 12l7-7 7 7"/>
-                </svg>
-            </button>
-            <button class="move-down" title="下移">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M12 5v14M5 12l7 7 7-7"/>
-                </svg>
-            </button>
-            <button class="remove-code" title="移除">×</button>
+        <div class="drag-handle">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="9" cy="6" r="2"/>
+                <circle cx="9" cy="12" r="2"/>
+                <circle cx="9" cy="18" r="2"/>
+                <circle cx="15" cy="6" r="2"/>
+                <circle cx="15" cy="12" r="2"/>
+                <circle cx="15" cy="18" r="2"/>
+            </svg>
         </div>
+        <span class="priority-code-content">排序${index + 1} - ${code}</span>
+        <button class="remove-code" title="移除">×</button>
     `;
 
-    // 移動按鈕功能
-    const moveUpBtn = item.querySelector('.move-up');
-    const moveDownBtn = item.querySelector('.move-down');
+    // 其餘的事件監聽器程式碼保持不變...
+    item.addEventListener('dragstart', (e) => {
+        item.classList.add('dragging');
+        e.dataTransfer.setData('text/plain', code);
+    });
+
+    item.addEventListener('dragend', () => {
+        item.classList.remove('dragging');
+        updatePriorityNumbers();
+    });
+
     const removeBtn = item.querySelector('.remove-code');
-
-    if (moveUpBtn) {
-        moveUpBtn.onclick = async () => {
-            const currentItem = item;
-            const previousItem = currentItem.previousElementSibling;
-            if (previousItem) {
-                priorityList.insertBefore(currentItem, previousItem);
-                await updatePriorityOrder(priorityList);
-                updatePriorityNumbers();
-            }
-        };
-    }
-
-    if (moveDownBtn) {
-        moveDownBtn.onclick = async () => {
-            const currentItem = item;
-            const nextItem = currentItem.nextElementSibling;
-            if (nextItem) {
-                priorityList.insertBefore(nextItem, currentItem);
-                await updatePriorityOrder(priorityList);
-                updatePriorityNumbers();
-            }
-        };
-    }
-
     if (removeBtn) {
-        removeBtn.onclick = async () => {
+        removeBtn.onclick = async (e) => {
+            e.stopPropagation();
             if (window.labTableConfigManager) {
                 await window.labTableConfigManager.removePriorityCode(code);
                 item.remove();
                 updatePriorityNumbers();
+                await updatePriorityOrder();
             }
         };
     }
@@ -401,30 +486,64 @@ function addPriorityCodeToList(code, index) {
     priorityList.appendChild(item);
 }
 
-// 更新序號的輔助函數
+// 修正更新序號的輔助函數
+async function updatePriorityOrder() {
+    const priorityList = document.getElementById('priority-codes-list');
+    if (!priorityList || !window.labTableConfigManager) return;
+
+    const newOrder = Array.from(priorityList.querySelectorAll('.priority-code'))
+        .map(item => item.dataset.code);
+
+    const config = {
+        priorityCodes: newOrder,
+        specialItems: window.labTableConfigManager.config.specialItems
+    };
+    
+    await window.labTableConfigManager.saveConfig(config);
+}
+
 function updatePriorityNumbers() {
     const priorityList = document.getElementById('priority-codes-list');
     if (!priorityList) return;
 
     const items = priorityList.querySelectorAll('.priority-code');
     items.forEach((item, index) => {
-        const numberDiv = item.querySelector('.priority-code-number');
-        if (numberDiv) {
-            numberDiv.textContent = index + 1;
+        const content = item.querySelector('.priority-code-content');
+        const code = item.dataset.code;
+        if (content && code) {
+            content.textContent = `排序${index + 1} - ${code}`;
         }
     });
 }
 
-async function updatePriorityOrder(priorityList) {
-    if (window.labTableConfigManager) {
-        const newOrder = Array.from(priorityList.querySelectorAll('.priority-code span'))
-            .map(span => span.textContent);
-        const config = {
-            priorityCodes: newOrder,
-            specialItems: window.labTableConfigManager.config.specialItems
-        };
-        await window.labTableConfigManager.saveConfig(config);
-    }
+function initializeDragAndDrop() {
+    const priorityList = document.getElementById('priority-codes-list');
+    if (!priorityList) return;
+
+    priorityList.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        const draggingItem = priorityList.querySelector('.dragging');
+        if (!draggingItem) return;
+
+        const siblings = [...priorityList.querySelectorAll('.priority-code:not(.dragging)')];
+        const nextSibling = siblings.find(sibling => {
+            const box = sibling.getBoundingClientRect();
+            const offset = e.clientY - box.top - box.height / 2;
+            return offset < 0;
+        });
+
+        if (nextSibling) {
+            priorityList.insertBefore(draggingItem, nextSibling);
+        } else {
+            priorityList.appendChild(draggingItem);
+        }
+        
+        updatePriorityNumbers();
+    });
+
+    priorityList.addEventListener('drop', async () => {
+        await updatePriorityOrder();
+    });
 }
 
 function addPartialItemToList(code, item) {

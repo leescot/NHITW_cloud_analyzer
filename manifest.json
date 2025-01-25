@@ -1,8 +1,8 @@
 {
     "manifest_version": 3,
     "name": "健保雲端資料整理",
-    "version": "1.0.34",
-    "description": "lab table group part 5",
+    "version": "1.0.37",
+    "description": "lab table group part 8",
     "icons": {
         "16": "icon16.png",
         "48": "icon48.png",
