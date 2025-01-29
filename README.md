@@ -107,9 +107,14 @@
   - 可自訂要以特定顏色標示的 ATC5 碼
   - 提供 ATC5 碼查詢連結
   - 註：需在表格欄位設定中新增「ATC5代碼」欄位
+* 範例: A02BC 設為藍色 / B01AF 為綠色 / NSAID 內定為紅色
+設定頁面:
+![image](https://github.com/leescot/img/blob/main/NHI_analyzer_setting_04.jpg)
+顯示結果:
+![image](https://github.com/leescot/img/blob/main/NHI_analyzer_setting_05.jpg)
 
 #### 6. 複製藥品格式
-提供五種複製格式選項：
+提供四種複製格式選項：
 1. 關閉複製功能：移除複製按鈕
 2. 複製商品名(直式)：
    ```
