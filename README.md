@@ -48,8 +48,6 @@
 3. 點擊選項
 ![Image](https://github.com/user-attachments/assets/23f8c5cf-92e0-44a1-8cee-ac2eae2792ae)
 就會出現以下設定頁面
-![Image](https://github.com/user-attachments/assets/c781507e-7cfd-4e8a-a82d-813299d7305b)
-
 ![Image](https://github.com/leescot/img/blob/main/NHI_analyzer_setting_01.png.jpg)
 
 ### 基本操作
