@@ -108,8 +108,10 @@
   - 提供 ATC5 碼查詢連結
   - 註：需在表格欄位設定中新增「ATC5代碼」欄位
 * 範例: A02BC 設為藍色 / B01AF 為綠色 / NSAID 內定為紅色
+
 設定頁面:
 ![image](https://github.com/leescot/img/blob/main/NHI_analyzer_setting_04.jpg)
+
 顯示結果:
 ![image](https://github.com/leescot/img/blob/main/NHI_analyzer_setting_05.jpg)
 
