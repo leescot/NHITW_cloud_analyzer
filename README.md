@@ -1,5 +1,6 @@
+
+![IMAGE](https://github.com/leescot/NHITW_cloud_analyzer/blob/main/icon128.png)
 # 健保雲端資料整理 Chrome Extension
-Write by Claude on 2025/01/16
 
 這是一個專門用於整理健保雲端資料的 Chrome 擴充功能，可以協助醫療人員更有效率地處理和查看雲端藥歷和檢驗報告資料。
 
@@ -31,7 +32,9 @@ Write by Claude on 2025/01/16
 - 可自訂檢驗縮寫對照表
 
 ## 安裝方式
+(A) 正式發佈版: 於 Chrome extension store 頁面直接下載安裝
 
+(B) 測試開發版: 於 GitHub 頁面下載
 1. 下載擴充功能檔案
 2. 開啟 Chrome 瀏覽器，進入擴充功能管理頁面 (`chrome://extensions/`)
 3. 開啟右上角的「開發人員模式」
@@ -39,6 +42,15 @@ Write by Claude on 2025/01/16
 5. 選取擴充功能所在資料夾
 
 ## 使用說明
+## 客製化設定操作
+1. 打開擴充功能
+2. 點擊健保雲端資料整理右邊三個點
+3. 點擊選項
+![Image](https://github.com/user-attachments/assets/23f8c5cf-92e0-44a1-8cee-ac2eae2792ae)
+就會出現以下設定頁面
+![Image](https://github.com/user-attachments/assets/c781507e-7cfd-4e8a-a82d-813299d7305b)
+
+![Image](https://github.com/user-attachments/assets/31eb087b-82e1-4d0d-8408-65494ded0bff)
 
 ### 基本操作
 1. 進入健保雲端藥歷或檢驗報告頁面
@@ -73,11 +85,3 @@ Write by Claude on 2025/01/16
 - 檢驗值異常標示僅供參考，請以原始報告為準
 
 
-## 客製化設定操作
-打開擴充功能
-點擊健保雲端資料整理右邊三個點
-點擊選項
-![Image](https://github.com/user-attachments/assets/23f8c5cf-92e0-44a1-8cee-ac2eae2792ae)
-就會出現以下設定頁面
-![Image](https://github.com/user-attachments/assets/c781507e-7cfd-4e8a-a82d-813299d7305b)
-![Image](https://github.com/user-attachments/assets/31eb087b-82e1-4d0d-8408-65494ded0bff)
