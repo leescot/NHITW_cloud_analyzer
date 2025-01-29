@@ -230,10 +230,8 @@
 未設定前表格，CBC 的 Hgb/Hb、GOT/AST(GOT) 和 GPT/ALT(GPT) 兩家不同來源院所的報告是分開的
 ![image](https://github.com/leescot/img/blob/main/NHI_analyzer_setting_13.jpg)
 
-設定
-![image](https://github.com/leescot/img/blob/main/NHI_analyzer_setting_11.jpg)
+使用進階設定後表格畫面呈現 Hgb/Hb、GOT/AST(GOT) 和 GPT/ALT(GPT) 整合在一起了
 
-設定後表格呈現
 ![image](https://github.com/leescot/img/blob/main/NHI_analyzer_setting_12.jpg)
 
   
