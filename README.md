@@ -50,7 +50,7 @@
 就會出現以下設定頁面
 ![Image](https://github.com/user-attachments/assets/c781507e-7cfd-4e8a-a82d-813299d7305b)
 
-![Image](https://github.com/user-attachments/assets/31eb087b-82e1-4d0d-8408-65494ded0bff)
+![Image](https://github.com/leescot/img/blob/main/NHI_analyzer_setting_01.png.jpg)
 
 ### 基本操作
 1. 進入健保雲端藥歷或檢驗報告頁面
