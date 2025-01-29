@@ -44,6 +44,32 @@
             border-bottom: 2px solid #d3efff;
             padding-bottom: 8px;
         }
+
+        /* New styles for the save button at top */
+        .top-save-button {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .save-button {
+            background-color: #2196F3;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        .save-button:hover {
+            background-color: #1976D2;
+        }
+        .save-status {
+            margin-top: 10px;
+            color: #4CAF50;
+            display: none;  /* 新增這行 */
+            text-align: center;
+        }
+
         label {
             display: block;
             margin-bottom: 15px;
@@ -61,27 +87,7 @@
             margin-top: 5px;
             background-color: white;
         }
-        .save-button {
-            background-color: #2196F3;
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 16px;
-            display: block;
-            margin: 20px auto 0;
-            transition: background-color 0.3s;
-        }
-        .save-button:hover {
-            background-color: #1976D2;
-        }
-        .save-status {
-            margin-top: 10px;
-            color: #4CAF50;
-            display: none;
-            text-align: center;
-        }
+
         .font-settings, .window-settings {
             margin-top: 15px;
         }
@@ -378,15 +384,54 @@
             opacity: 1;
         }
 
+        .header-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .header-container h1 {
+            margin: 0;
+        }
+        
+        .doc-link {
+            color: #2196F3;
+            text-decoration: none;
+            padding: 5px 10px;
+            border: 1px solid #2196F3;
+            border-radius: 4px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+        
+        .doc-link:hover {
+            background-color: #2196F3;
+            color: white;
+        }
     </style>
 </head>
 <body>
     <div class="settings-container">
-        <h1>健保雲端分析器設定</h1>
+        <div class="header-container">
+            <h1>健保雲端分析器設定</h1>
+            <a href="https://github.com/leescot/NHITW_cloud_analyzer/blob/main/README.md" 
+               class="doc-link" 
+               target="_blank">說明文件</a>
+        </div>
+        
+        <!-- Moved save button to top -->
+        <div class="top-save-button">
+            <button id="saveButton" class="save-button">儲存設定</button>
+            <div id="saveStatus" class="save-status">設定已儲存！</div>
+        </div>
         
         <div class="settings-grid">
+            <!-- Combined System Settings and Interface Settings -->
             <div class="setting-group">
                 <h2>系統設定</h2>
+                <!-- Original system settings -->
                 <label class="checkbox-label">
                     <input type="checkbox" id="autoProcess">
                     進相關頁面時自動讀取資料並顯示視窗
@@ -409,6 +454,57 @@
                         <option value="10">到第10 頁</option>
                     </select>
                 </label>
+
+                <!-- Merged interface settings -->
+                <div class="font-settings">
+                    <h3 style="color: #666; font-size: 16px; margin: 15px 0 10px;">字型大小</h3>
+                    <label>
+                        標題字型大小：
+                        <select id="titleFontSize">
+                            <option value="12">小 (12px)</option>
+                            <option value="16">中 (16px)</option>
+                            <option value="20">大 (20px)</option>
+                        </select>
+                    </label>
+                    <label>
+                        內容字型大小：
+                        <select id="contentFontSize">
+                            <option value="12">小 (12px)</option>
+                            <option value="14">中 (14px)</option>
+                            <option value="16">大 (16px)</option>
+                        </select>
+                    </label>
+                    <label>
+                        備註字型大小：
+                        <select id="noteFontSize">
+                            <option value="10">小 (10px)</option>
+                            <option value="12">中 (12px)</option>
+                            <option value="14">大 (14px)</option>
+                        </select>
+                    </label>
+                </div>
+
+                <div class="window-settings">
+                    <h3 style="color: #666; font-size: 16px; margin: 15px 0 10px;">視窗大小</h3>
+                    <label>
+                        視窗寬度：
+                        <select id="windowWidth">
+                            <option value="300">窄 (300px)</option>
+                            <option value="400">中 (400px)</option>
+                            <option value="500">寬 (500px)</option>
+                            <option value="600">特寬 (600px)</option>
+                        </select>
+                    </label>
+                    <label>
+                        視窗高度：
+                        <select id="windowHeight">
+                            <option value="60">適中 (60%)</option>
+                            <option value="70">較高 (70%)</option>
+                            <option value="80">高 (80%)</option>
+                            <option value="90">特高 (90%)</option>
+                        </select>
+                    </label>
+                </div>
             </div>
 
             <div class="setting-group">
@@ -437,7 +533,7 @@
                 </label>
                 <button id="manageATC5Colors" class="secondary-button" style="display: none;">
                     管理 ATC5碼 顏色對照
-                </button>
+                </button><br>
                 <label>
                     複製藥品格式：
                     <select id="copyFormat">
@@ -488,62 +584,8 @@
                 </button>
             </div>
 
-            <div class="setting-group">
-                <h2>介面設定</h2>
-                <div class="font-settings">
-                    <h3 style="color: #666; font-size: 16px; margin-bottom: 10px;">字型大小</h3>
-                    <label>
-                        標題字型大小：
-                        <select id="titleFontSize">
-                            <option value="12">小 (12px)</option>
-                            <option value="16">中 (16px)</option>
-                            <option value="20">大 (20px)</option>
-                        </select>
-                    </label>
-                    <label>
-                        內容字型大小：
-                        <select id="contentFontSize">
-                            <option value="12">小 (12px)</option>
-                            <option value="14">中 (14px)</option>
-                            <option value="16">大 (16px)</option>
-                        </select>
-                    </label>
-                    <label>
-                        備註字型大小：
-                        <select id="noteFontSize">
-                            <option value="10">小 (10px)</option>
-                            <option value="12">中 (12px)</option>
-                            <option value="14">大 (14px)</option>
-                        </select>
-                    </label>
-                </div>
 
-                <div class="window-settings">
-                    <h3 style="color: #666; font-size: 16px; margin-bottom: 10px;">視窗大小</h3>
-                    <label>
-                        視窗寬度：
-                        <select id="windowWidth">
-                            <option value="300">窄 (300px)</option>
-                            <option value="400">中 (400px)</option>
-                            <option value="500">寬 (500px)</option>
-                            <option value="600">特寬 (600px)</option>
-                        </select>
-                    </label>
-                    <label>
-                        視窗高度：
-                        <select id="windowHeight">
-                            <option value="60">適中 (60%)</option>
-                            <option value="70">較高 (70%)</option>
-                            <option value="80">高 (80%)</option>
-                            <option value="90">特高 (90%)</option>
-                        </select>
-                    </label>
-                </div>
-            </div>
         </div>
-
-        <button id="saveButton" class="save-button">儲存設定</button>
-        <div id="saveStatus" class="save-status">設定已儲存！</div>
     </div>
     <div id="lab-table-config-dialog" style="display: none;" class="dialog-overlay">
         <div class="dialog-content">

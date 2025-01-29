@@ -48,7 +48,7 @@ const medicineProcessor = {
                         this.displayResults(newData, settings);
                     });
                 }
-            }, 1000); // 設定 1 秒的節流時間
+            }, 300); // 設定 1 秒的節流時間
     
             // 建立新的觀察器
             this.currentObserver = new MutationObserver(() => {
@@ -77,7 +77,7 @@ const medicineProcessor = {
         }
 
         const button = document.createElement('button');
-        button.textContent = '表格顯示';
+        button.textContent = '表格';
         button.style.cssText = `
             background-color: #f28500;
             color: white;
@@ -126,23 +126,28 @@ const medicineProcessor = {
     },
 
     getATC5Color(atc5Code, settings) {
-        if (!settings.enableATC5Coloring || !atc5Code) return null;
-        
-        // console.log('正在檢查 ATC5 顏色:', {  // 添加日誌
-        //     code: atc5Code,
-        //     settings: settings
-        // });
+        // 1. 首先檢查是否啟用 ATC5 顏色功能且有 ATC5 代碼
+        if (!settings?.enableATC5Coloring || !atc5Code) {
+            return null;
+        }
 
-        const { atc5Colors } = settings;
+        // 2. 檢查 atc5Colors 是否存在且具有必要的屬性
+        const colors = settings.atc5Colors || {
+            red: ['M01AA', 'M01AB', 'M01AC', 'M01AE', 'M01AG', 'M01AH'],
+            blue: [],
+            green: []
+        };
 
-        // 使用前綴匹配來檢查 ATC5 代碼
+        // 3. 使用前綴匹配來檢查 ATC5 代碼
         const checkPrefix = (codeList) => {
+            if (!Array.isArray(codeList)) return false;
             return codeList.some(prefix => atc5Code.startsWith(prefix));
         };
 
-        if (checkPrefix(atc5Colors.red)) return '#ffebee';
-        if (checkPrefix(atc5Colors.blue)) return '#e3f2fd';
-        if (checkPrefix(atc5Colors.green)) return '#e8f5e9';
+        // 4. 依序檢查每種顏色
+        if (colors.red && checkPrefix(colors.red)) return '#ffebee';
+        if (colors.blue && checkPrefix(colors.blue)) return '#e3f2fd';
+        if (colors.green && checkPrefix(colors.green)) return '#e8f5e9';
         
         return null;
     },
@@ -278,10 +283,10 @@ const medicineProcessor = {
         const medicineName = simplifyName ? this.simplifyMedicineName(medicine.name) : medicine.name;
         
         return `
-            <div style="margin-bottom: 8px;">
+            <div style="margin-bottom: 2px;">
                 <div>${medicineName} ${displayText} ${medicine.usage}${daysText}</div>
                 ${showGenericName && medicine.ingredient ? 
-                    `<div style="color: #666; margin-top: 2px;">
+                    `<div style="color: #666; margin-top: 0px;">
                         ${medicine.ingredient}
                     </div>` : ''}
             </div>
@@ -571,16 +576,16 @@ const medicineProcessor = {
 
                 group.medicines.forEach(med => {
                     const medDiv = document.createElement('div');
-                    medDiv.style.cssText = 'margin-bottom: 8px;';
+                    medDiv.style.cssText = 'margin-bottom: 0px;';
         
                     // 處理 ATC5 顏色
                     if (settings.enableATC5Coloring && med.atc5Code) {
                         const backgroundColor = this.getATC5Color(med.atc5Code, settings);
                         if (backgroundColor) {
                             medDiv.style.backgroundColor = backgroundColor;
-                            medDiv.style.padding = '5px';
-                            medDiv.style.borderRadius = '4px';
-                            medDiv.style.marginBottom = '5px';
+                            medDiv.style.padding = '2px';
+                            medDiv.style.borderRadius = '2px';
+                            medDiv.style.marginBottom = '2px';
                         }
                     }
         
@@ -769,64 +774,79 @@ const medicineProcessor = {
         return groupedData;
     },
 
-    // 合併和優化後的 initialize 方法
     async initialize() {
         console.log('開始初始化...');
-
+    
         // 檢查是否正在進行自動翻頁
         const isAutoPaging = window.autoPagingHandler && 
                             window.autoPagingHandler.state.isProcessing;
-
+    
         // 檢查是自動處理還是手動點擊
         const { autoProcess } = await new Promise(resolve => {
             chrome.storage.sync.get({ autoProcess: false }, resolve);
         });
         
         console.log('初始化模式:', { autoProcess, isAutoPaging });
-
+    
         if (!isAutoPaging) {
             this.cleanup();
         }
         
         try {
+            // 定義預設設定值
+            const defaultSettings = {
+                enableATC5Coloring: false,
+                atc5Colors: {
+                    red: ['M01AA', 'M01AB', 'M01AC', 'M01AE', 'M01AG', 'M01AH'],
+                    blue: [],
+                    green: []
+                },
+                titleFontSize: '16',
+                contentFontSize: '14',
+                noteFontSize: '12',
+                windowWidth: '500',
+                windowHeight: '80',
+                showGenericName: false,
+                simplifyMedicineName: true,
+                copyFormat: 'nameWithDosageVertical',
+                showDiagnosis: false
+            };
+    
+            // 獲取使用者設定，並與預設值合併
             const settings = await new Promise(resolve => {
-                chrome.storage.sync.get({
-                    enableATC5Coloring: false,
-                    atc5Colors: {
-                        red: ['M01AA', 'M01AB', 'M01AC', 'M01AE', 'M01AG', 'M01AH'],
-                        blue: [],
-                        green: []
-                    },
-                    titleFontSize: '16',
-                    contentFontSize: '14',
-                    noteFontSize: '12',
-                    windowWidth: '500',
-                    windowHeight: '80',
-                    showGenericName: false,
-                    simplifyMedicineName: true,
-                    copyFormat: 'nameWithDosageVertical',
-                    showDiagnosis: false
-                }, resolve);
+                chrome.storage.sync.get(defaultSettings, resolve);
             });
-
+    
+            // 確保 atc5Colors 的完整性
+            settings.atc5Colors = {
+                ...defaultSettings.atc5Colors,
+                ...settings.atc5Colors
+            };
+    
+            // 檢查並分析表格
             const tables = this.inspectTables();
             if (tables.length === 0) {
                 console.log('未找到任何表格，可能頁面尚未完全載入');
                 return false;
             }
-
+    
             let hasProcessedTable = false;
             for (const table of tables) {
+                // 檢查 ATC5 欄位
                 if (settings.enableATC5Coloring && !this.checkATC5Column(table)) {
                     if (!isAutoPaging) {
                         this.showATC5Warning();
                     }
                     continue;
                 }
+    
+                // 提取藥品資料
                 const data = this.extractMedicineData(table);
                 if (data && Object.keys(data).length > 0) {
                     this.currentData = data;
-                    this.displayResults(data, settings);
+                    await this.displayResults(data, settings);
+    
+                    // 非自動翻頁模式下設置監聽和按鈕
                     if (!isAutoPaging) {
                         this.listenToPageChanges();
                         
@@ -843,6 +863,7 @@ const medicineProcessor = {
             }
             
             return hasProcessedTable;
+    
         } catch (error) {
             console.error('初始化過程發生錯誤:', error);
             return false;
@@ -864,6 +885,11 @@ const medicineProcessor = {
         if (existingDiv) {
             existingDiv.remove();
             console.log('已移除現有顯示視窗');
+        }
+        const existingTable = document.getElementById('medicine-grouping-window');
+        if (existingTable) {
+            existingTable.remove();
+            console.log('已移除現有表格視窗');
         }
         
         // 清理暫存的資料

@@ -75,7 +75,7 @@ const labProcessor = {
         }
 
         const button = document.createElement('button');
-        button.textContent = '表格顯示';
+        button.textContent = '表格';
         button.style.cssText = `
             background-color: #f28500;
             color: white;
@@ -396,7 +396,11 @@ const labProcessor = {
             existingDiv.remove();
             console.log('已移除現有顯示視窗');
         }
-        
+        const existingTable = document.getElementById('lab-grouping-window');
+        if (existingTable) {
+            existingTable.remove();
+            console.log('已移除現有表格視窗');
+        }
         // 清理暫存的資料
         this.currentData = null;
 
@@ -797,7 +801,7 @@ const labProcessor = {
     
             // 4. 創建標題
             const titleH3 = document.createElement('h3');
-            titleH3.textContent = '檢驗報告記錄';
+            titleH3.textContent = '檢驗結果';
             titleH3.style.cssText = `
                 margin: 0;
                 font-size: ${settings.titleFontSize}px;

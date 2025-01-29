@@ -188,7 +188,7 @@ const autoPagingHandler = {
         await window.nextPagingHandler.handlePageChange(true);
         
         // 等待新資料載入
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 300));
         
         // 根據頁面類型獲取並合併資料
         if (window.location.href.includes('IMUE0008')) {

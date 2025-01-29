@@ -210,11 +210,12 @@ const labGroupingHandler = {
                 showLabUnit: false,
                 highlightAbnormalLab: false,
                 titleFontSize: '16',
-                contentFontSize: '14'
+                contentFontSize: '14',
+                windowWidth: '500'  // 添加 windowWidth 設定
             }, resolve);
         });
-
-        // Load abbreviations if enabled
+    
+        // 載入縮寫設定
         let abbreviations = {};
         let abbrevEnabled = false;
         if (settings.enableLabAbbrev && window.labAbbreviationManager) {
@@ -226,26 +227,43 @@ const labGroupingHandler = {
                 console.error('載入檢驗縮寫失敗:', error);
             }
         }
-
+    
+        // 計算表格視窗的位置和大小
+        const mainWindowWidth = parseInt(settings.windowWidth);
+        const browserWidth = window.innerWidth;
+        const availableWidth = browserWidth - mainWindowWidth;
+        const tableWindowWidth = Math.floor(availableWidth * 0.95);
+        const leftPosition = Math.floor((availableWidth - tableWindowWidth) / 2);
+    
         const container = document.createElement('div');
         container.id = 'lab-grouping-window';
         container.style.cssText = `
             position: fixed;
             top: 50%;
-            left: 40%;
-            transform: translate(-50%, -50%);
+            left: ${leftPosition}px;
+            transform: translateY(-50%);
             background: white;
             padding: 20px;
             border-radius: 8px;
             box-shadow: 0 2px 15px rgba(0,0,0,0.2);
-            width: 80%;
+            width: ${tableWindowWidth}px;
             height: 80vh;
             z-index: 10002;
             display: flex;
             flex-direction: column;
         `;
-
-        // Header section remains the same...
+    
+        // Add window resize event listener
+        window.addEventListener('resize', () => {
+            const newAvailableWidth = window.innerWidth - mainWindowWidth - 60;
+            const newTableWindowWidth = Math.floor(newAvailableWidth * 0.85);
+            const newLeftPosition = Math.floor((newAvailableWidth - newTableWindowWidth) / 2);
+            
+            container.style.width = `${newTableWindowWidth}px`;
+            container.style.left = `${newLeftPosition}px`;
+        });
+    
+        // Header section
         const header = document.createElement('div');
         header.style.cssText = `
             display: flex;
@@ -264,7 +282,7 @@ const labGroupingHandler = {
             color: #2196F3;
             font-size: ${settings.titleFontSize}px;
         `;
-
+    
         const closeButton = document.createElement('button');
         closeButton.textContent = '×';
         closeButton.style.cssText = `
@@ -276,18 +294,18 @@ const labGroupingHandler = {
             padding: 0;
         `;
         closeButton.onclick = () => container.remove();
-
+    
         header.appendChild(title);
         header.appendChild(closeButton);
         container.appendChild(header);
-
+    
         // Content container
         const contentContainer = document.createElement('div');
         contentContainer.style.cssText = `
             flex-grow: 1;
             overflow: auto;
         `;
-
+    
         // Process and group data
         const groupedTests = await this.categorizeLabTests(labData);
         if (groupedTests.size === 0) {
@@ -299,7 +317,7 @@ const labGroupingHandler = {
             container.appendChild(contentContainer);
             return container;
         }
-
+    
         // Create table
         const table = document.createElement('table');
         table.style.cssText = `
@@ -356,7 +374,7 @@ const labGroupingHandler = {
         thead.appendChild(headerRow);
         table.appendChild(thead);
 
-        // Create table content with user settings applied
+        // 修改表格內容創建部分
         const tbody = document.createElement('tbody');
         groupedTests.forEach((test) => {
             const row = document.createElement('tr');
@@ -450,7 +468,7 @@ const labGroupingHandler = {
         tableWrapper.appendChild(table);
         contentContainer.appendChild(tableWrapper);
         container.appendChild(contentContainer);
-
+    
         return container;
     },
 

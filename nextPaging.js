@@ -119,7 +119,6 @@ const nextPagingHandler = {
         return observer;
     },
     
-    // 修改 handlePageChange 方法
     async handlePageChange(isNext) {
         if (isNext && !this.hasNextPage()) {
             console.log('已經是最後一頁');
@@ -129,18 +128,22 @@ const nextPagingHandler = {
             console.log('已經是第一頁');
             return;
         }
-    
+
         const button = isNext ? this.findNextPageButton() : this.findPrevPageButton();
         if (button) {
             console.log(isNext ? '點擊下一頁按鈕' : '點擊上一頁按鈕');
             
-            // 檢查是否正在執行自動翻頁
+            // 檢查是否正在執行自動翻頁（同時檢查藥物和檢驗處理器）
             const isLabAutoPaging = window.labProcessor && window.labProcessor.state?.isProcessing;
-    
+            const isMedAutoPaging = window.autoPagingHandler && window.autoPagingHandler.state?.isProcessing;
+
             // 只有在非自動翻頁時才清理資料
-            if (!isLabAutoPaging) {
+            if (!isLabAutoPaging && !isMedAutoPaging) {
                 if (window.labProcessor && window.labProcessor.cleanup) {
                     window.labProcessor.cleanup();
+                }
+                if (window.medicineProcessor && window.medicineProcessor.cleanup) {
+                    window.medicineProcessor.cleanup();
                 }
                 if (window.imageProcessor && window.imageProcessor.cleanup) {
                     window.imageProcessor.cleanup();
@@ -156,12 +159,15 @@ const nextPagingHandler = {
             this.updatePaginationInfo();
             
             // 只在非自動翻頁模式下重新初始化處理器
-            if (!isLabAutoPaging) {
+            if (!isLabAutoPaging && !isMedAutoPaging) {
                 try {
-                    if (window.location.href.includes('IMUE0060')) {
+                    const currentUrl = window.location.href;
+                    if (currentUrl.includes('IMUE0060')) {
                         await window.labProcessor.initialize();
-                    } else if (window.location.href.includes('IMUE0130')) {
+                    } else if (currentUrl.includes('IMUE0130')) {
                         await window.imageProcessor.handleButtonClick();
+                    } else if (currentUrl.includes('IMUE0008')) {
+                        await window.medicineProcessor.initialize();
                     }
                 } catch (error) {
                     console.error('處理器初始化失敗:', error);
@@ -253,7 +259,7 @@ const nextPagingHandler = {
 
         // 建立上一頁按鈕
         const prevButton = document.createElement('button');
-        prevButton.textContent = '上一頁';
+        prevButton.textContent = '上頁';
         const canPrev = this.hasPrevPage();
         prevButton.style.cssText = `
             background-color: ${canPrev ? '#2196F3' : '#ccc'};
@@ -270,7 +276,7 @@ const nextPagingHandler = {
 
         // 建立下一頁按鈕
         const nextButton = document.createElement('button');
-        nextButton.textContent = '下一頁';
+        nextButton.textContent = '下頁';
         const canNext = this.hasNextPage();
         nextButton.style.cssText = `
             background-color: ${canNext ? '#2196F3' : '#ccc'};

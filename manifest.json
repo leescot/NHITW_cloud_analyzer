@@ -1,8 +1,8 @@
 {
     "manifest_version": 3,
-    "name": "健保雲端資料整理",
-    "version": "1.0.37",
-    "description": "lab table group part 8",
+    "name": "健保雲端藥歷分析器2.0",
+    "version": "1.0.39",
+    "description": "分析並整理台灣健保雲端資料，提高查詢資料醫療人員的工作效率！",
     "icons": {
         "16": "icon16.png",
         "48": "icon48.png",
@@ -13,7 +13,7 @@
             "19": "icon19.png",
             "38": "icon38.png"
         },
-        "default_title": "健保雲端藥歷分析器"
+        "default_title": "健保雲端藥歷分析器2.0"
     },
     "options_page": "settings.html",
     "permissions": ["activeTab", "storage"],
