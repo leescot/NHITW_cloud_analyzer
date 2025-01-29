@@ -231,7 +231,6 @@
 ![image](https://github.com/leescot/img/blob/main/NHI_analyzer_setting_13.jpg)
 
 使用進階設定後表格畫面呈現 Hgb/Hb、GOT/AST(GOT) 和 GPT/ALT(GPT) 整合在一起了
-
 ![image](https://github.com/leescot/img/blob/main/NHI_analyzer_setting_12.jpg)
 
   
