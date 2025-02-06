@@ -24,6 +24,7 @@
                 "https://medvpn.nhi.gov.tw/*"
             ],
             "js": [
+                "chineseMedicineProcessor.js",
                 "medicineProcessor.js",
                 "labProcessor.js",
                 "labAbbreviations.js",
@@ -45,4 +46,4 @@
             "matches": ["https://*.nhi.gov.tw/*"]
         }
     ]
-  }
+}
