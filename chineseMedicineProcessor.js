@@ -7,6 +7,12 @@ if (typeof window.chineseMedicineProcessor === "undefined") {
     currentData: null,
     currentObserver: null,
 
+    // 分頁相關屬性
+    paginationState: {
+      currentPage: 1,
+      maxPage: 1,
+    },
+
     // 檢查表格方法
     inspectTables() {
       try {
@@ -18,7 +24,6 @@ if (typeof window.chineseMedicineProcessor === "undefined") {
           return [];
         }
 
-        // 找出包含中藥資訊的表格
         const potentialTables = Array.from(allTables).filter((table) => {
           if (!table) return false;
 
@@ -83,26 +88,16 @@ if (typeof window.chineseMedicineProcessor === "undefined") {
               cells[columnMap.給藥總量]?.textContent?.trim() || "";
             let dailyAmount = "";
 
-            // 計算每日劑量
             if (days && totalAmount) {
               const daysNum = parseFloat(days);
               const totalNum = parseFloat(totalAmount);
               if (!isNaN(daysNum) && !isNaN(totalNum) && daysNum > 0) {
                 dailyAmount = (totalNum / daysNum).toFixed(1);
-                console.log(
-                  `計算每日劑量 - 處方: ${cells[
-                    columnMap.方名
-                  ]?.textContent?.trim()}, 總量: ${totalNum}, 天數: ${daysNum}, 每日劑量: ${dailyAmount}`
-                );
               }
             }
 
-            // 處理主診斷
             const diagnosisText =
               cells[columnMap.主診斷]?.textContent?.trim() || "";
-            console.log("原始診斷文字:", diagnosisText);
-
-            // 使用正則表達式找出診斷碼（英文+數字的組合）
             const diagnosisMatch = diagnosisText.match(
               /([A-Z][0-9]+[A-Z0-9]*)/
             );
@@ -111,19 +106,11 @@ if (typeof window.chineseMedicineProcessor === "undefined") {
 
             if (diagnosisMatch) {
               diagnosisCode = diagnosisMatch[0];
-              // 移除診斷碼和任何特殊字符，留下中文診斷
               chineseDiagnosis = diagnosisText
                 .replace(diagnosisCode, "")
                 .replace(/<br>|<BR>/g, "")
                 .trim();
             }
-
-            console.log(
-              "分割後 - 診斷碼:",
-              diagnosisCode,
-              "中文診斷:",
-              chineseDiagnosis
-            );
 
             const formattedDiagnosis = diagnosisCode
               ? `${diagnosisCode} ${chineseDiagnosis}`
@@ -175,129 +162,266 @@ if (typeof window.chineseMedicineProcessor === "undefined") {
           return groups;
         }, {});
 
-        // 對每個日期組內的藥品進行排序
         Object.values(groupedData).forEach((group) => {
           group.medicines.sort((a, b) => {
             const amountA = parseFloat(a.dailyAmount) || 0;
             const amountB = parseFloat(b.dailyAmount) || 0;
-            return amountB - amountA; // 降序排列
+            return amountB - amountA;
           });
         });
 
-        console.log("分組後的資料:", groupedData);
         return groupedData;
       } catch (error) {
         console.error("提取資料時發生錯誤:", error);
         return null;
       }
+    }, // 創建分頁控制按鈕
+    createPagingControls() {
+      const controlsDiv = document.createElement("div");
+      controlsDiv.style.cssText = `
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      `;
+
+      const prevButton = document.createElement("button");
+      prevButton.textContent = "上頁";
+      const canPrev = this.paginationState.currentPage > 1;
+      prevButton.style.cssText = `
+        background-color: ${canPrev ? "#2196F3" : "#ccc"};
+        color: white;
+        border: none;
+        border-radius: 4px;
+        padding: 4px 12px;
+        cursor: ${canPrev ? "pointer" : "not-allowed"};
+        font-size: 14px;
+      `;
+      if (canPrev) {
+        prevButton.onclick = () => this.handlePageChange(false);
+      }
+
+      const nextButton = document.createElement("button");
+      nextButton.textContent = "下頁";
+      const canNext =
+        this.paginationState.currentPage < this.paginationState.maxPage;
+      nextButton.style.cssText = `
+        background-color: ${canNext ? "#2196F3" : "#ccc"};
+        color: white;
+        border: none;
+        border-radius: 4px;
+        padding: 4px 12px;
+        cursor: ${canNext ? "pointer" : "not-allowed"};
+        font-size: 14px;
+      `;
+      if (canNext) {
+        nextButton.onclick = () => this.handlePageChange(true);
+      }
+
+      const pageInfo = document.createElement("span");
+      pageInfo.style.cssText = `
+        color: #666;
+        font-size: 14px;
+      `;
+      pageInfo.textContent = `(第${this.paginationState.currentPage}/${this.paginationState.maxPage}頁)`;
+
+      controlsDiv.appendChild(prevButton);
+      controlsDiv.appendChild(nextButton);
+      controlsDiv.appendChild(pageInfo);
+
+      return controlsDiv;
+    },
+
+    // 處理頁面切換
+    async handlePageChange(isNext) {
+      if (
+        isNext &&
+        this.paginationState.currentPage >= this.paginationState.maxPage
+      ) {
+        console.log("已經是最後一頁");
+        return;
+      }
+      if (!isNext && this.paginationState.currentPage <= 1) {
+        console.log("已經是第一頁");
+        return;
+      }
+
+      const button = isNext
+        ? document.querySelector(".paginate_button.next:not(.disabled)")
+        : document.querySelector(".paginate_button.previous:not(.disabled)");
+
+      if (button) {
+        this.paginationState.currentPage = isNext
+          ? this.paginationState.currentPage + 1
+          : this.paginationState.currentPage - 1;
+
+        this.cleanup();
+        button.click();
+        await this.waitForPageLoad();
+        await this.initialize();
+      }
+    },
+
+    // 等待頁面載入
+    waitForPageLoad() {
+      return new Promise((resolve) => {
+        const checkContent = (retries = 0, maxRetries = 10) => {
+          if (retries >= maxRetries) {
+            console.log("等待頁面載入超時");
+            resolve();
+            return;
+          }
+
+          const tables = document.getElementsByTagName("table");
+          const hasNewContent = Array.from(tables).some((table) => {
+            return table.querySelector("tbody tr td") !== null;
+          });
+
+          if (hasNewContent) {
+            setTimeout(resolve, 500);
+          } else {
+            setTimeout(() => checkContent(retries + 1), 500);
+          }
+        };
+
+        checkContent();
+      });
+    },
+
+    // 更新分頁信息
+    updatePaginationInfo() {
+      const pageButtons = Array.from(
+        document.querySelectorAll(".paginate_button")
+      );
+      if (!pageButtons.length) {
+        return false;
+      }
+
+      const pageNumbers = pageButtons
+        .map((button) => parseInt(button.textContent))
+        .filter((num) => !isNaN(num));
+
+      this.paginationState.maxPage = Math.max(...pageNumbers, 1);
+
+      const activeButton = document.querySelector(".paginate_button.current");
+      if (activeButton) {
+        const currentPage = parseInt(activeButton.textContent);
+        if (!isNaN(currentPage)) {
+          this.paginationState.currentPage = currentPage;
+        }
+      }
+
+      return true;
     },
 
     // 顯示結果方法
     async displayResults(groupedData, userSettings = {}) {
-      console.log("開始顯示中藥資料，設定:", userSettings);
-
       let displayDiv = document.getElementById("chinese-medicine-list");
       if (!displayDiv) {
         displayDiv = document.createElement("div");
         displayDiv.id = "chinese-medicine-list";
         displayDiv.style.cssText = `
-                    position: fixed;
-                    top: 90px;
-                    right: 20px;
-                    background-color: #ffffff;
-                    border: 3px solid #d3efff;
-                    padding: 20px;
-                    border-radius: 10px;
-                    height: ${userSettings.windowHeight || 80}vh;
-                    width: ${userSettings.windowWidth || 500}px;
-                    z-index: 10000;
-                    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-                    font-family: Arial, sans-serif;
-                    display: flex;
-                    flex-direction: column;
-                `;
+          position: fixed;
+          top: 90px;
+          right: 20px;
+          background-color: #ffffff;
+          border: 3px solid #d3efff;
+          padding: 20px;
+          border-radius: 10px;
+          height: ${userSettings.windowHeight || 80}vh;
+          width: ${userSettings.windowWidth || 500}px;
+          z-index: 10000;
+          box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+          font-family: Arial, sans-serif;
+          display: flex;
+          flex-direction: column;
+        `;
       } else {
         displayDiv.innerHTML = "";
       }
 
-      // 標題區域
       const headerDiv = document.createElement("div");
       headerDiv.style.cssText = `
-                background-color: #d3efff;
-                color: #2196F3;
-                padding: 12px 15px;
-                margin: -20px -20px 15px -20px;
-                border-radius: 7px 7px 0 0;
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-            `;
+        background-color: #d3efff;
+        color: #2196F3;
+        padding: 12px 15px;
+        margin: -20px -20px 15px -20px;
+        border-radius: 7px 7px 0 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      `;
 
       const titleH3 = document.createElement("h3");
       titleH3.textContent = "中醫處方";
       titleH3.style.cssText = `
-                margin: 0;
-                font-size: ${userSettings.titleFontSize || 16}px;
-                padding: 0;
-                font-weight: bold;
-            `;
+        margin: 0;
+        font-size: ${userSettings.titleFontSize || 16}px;
+        padding: 0;
+        font-weight: bold;
+      `;
+
+      const rightControls = document.createElement("div");
+      rightControls.style.cssText = `
+        display: flex;
+        align-items: center;
+        gap: 15px;
+      `;
+
+      const pagingControls = this.createPagingControls();
+      rightControls.appendChild(pagingControls);
 
       const closeButton = document.createElement("button");
       closeButton.textContent = "×";
       closeButton.style.cssText = `
-                background: none;
-                border: none;
-                color: #2196F3;
-                cursor: pointer;
-                font-size: 20px;
-                padding: 0;
-                line-height: 1;
-            `;
+        background: none;
+        border: none;
+        color: #2196F3;
+        cursor: pointer;
+        font-size: 20px;
+        padding: 0;
+        line-height: 1;
+      `;
       closeButton.onclick = () => displayDiv.remove();
+      rightControls.appendChild(closeButton);
 
       headerDiv.appendChild(titleH3);
-      headerDiv.appendChild(closeButton);
+      headerDiv.appendChild(rightControls);
 
-      // 內容區域
       const contentDiv = document.createElement("div");
       contentDiv.style.cssText = `
-                flex-grow: 1;
-                overflow-y: auto;
-                padding-right: 5px;
-            `;
+        flex-grow: 1;
+        overflow-y: auto;
+        padding-right: 5px;
+      `;
 
-      // 按日期排序並顯示資料
       Object.values(groupedData)
         .sort((a, b) => b.date.localeCompare(a.date))
         .forEach((group) => {
           const dateBlock = document.createElement("div");
           dateBlock.style.marginBottom = "20px";
 
-          // 日期標題區，分為兩行
           const dateHeader = document.createElement("div");
           dateHeader.style.cssText = `
-                        font-weight: bold;
-                        padding-bottom: 5px;
-                        margin-bottom: 10px;
-                        border-bottom: 2px solid #d3efff;
-                    `;
+            font-weight: bold;
+            padding-bottom: 5px;
+            margin-bottom: 10px;
+            border-bottom: 2px solid #d3efff;
+          `;
 
-          // 頂部：日期和來源
           const dateSource = document.createElement("div");
           dateSource.style.cssText = `
-                        color: #2196F3;
-                        font-size: ${userSettings.titleFontSize || 16}px;
-                        margin-bottom: 5px;
-                    `;
+            color: #2196F3;
+            font-size: ${userSettings.titleFontSize || 16}px;
+            margin-bottom: 5px;
+          `;
           dateSource.textContent = `${group.date} ${group.source}`;
 
-          // 下方：主診斷
           const diagnosisSpan = document.createElement("div");
           diagnosisSpan.style.cssText = `
-                        color: #000000;
-                        font-weight: bold;
-                        font-size: ${userSettings.titleFontSize || 16}px;
-                    `;
+            color: #000000;
+            font-weight: bold;
+            font-size: ${userSettings.titleFontSize || 16}px;
+          `;
           diagnosisSpan.textContent = group.diagnosis || "";
 
           dateHeader.appendChild(dateSource);
@@ -305,11 +429,10 @@ if (typeof window.chineseMedicineProcessor === "undefined") {
 
           const medicinesList = document.createElement("div");
           medicinesList.style.cssText = `
-                        padding-left: 10px;
-                        font-size: ${userSettings.contentFontSize || 14}px;
-                    `;
+            padding-left: 10px;
+            font-size: ${userSettings.contentFontSize || 14}px;
+          `;
 
-          // 藥品已在 extractChineseMedicineData 中排序
           group.medicines.forEach((med) => {
             const medDiv = document.createElement("div");
             medDiv.style.marginBottom = "8px";
@@ -319,10 +442,10 @@ if (typeof window.chineseMedicineProcessor === "undefined") {
             const usageText = med.usage || "";
 
             medDiv.innerHTML = `
-                            <div style="margin-bottom: 2px;">
-                                ${med.formulaName} ${dailyAmountText} ${daysText} ${usageText}
-                            </div>
-                        `;
+              <div style="margin-bottom: 2px;">
+                ${med.formulaName} ${dailyAmountText} ${daysText} ${usageText}
+              </div>
+            `;
             medicinesList.appendChild(medDiv);
           });
 
@@ -344,6 +467,8 @@ if (typeof window.chineseMedicineProcessor === "undefined") {
       console.log("開始初始化中藥處理器...");
 
       try {
+        this.updatePaginationInfo();
+
         const tables = this.inspectTables();
         if (!tables || tables.length === 0) {
           console.log("未找到任何符合的表格");
@@ -357,7 +482,6 @@ if (typeof window.chineseMedicineProcessor === "undefined") {
           const data = this.extractChineseMedicineData(table);
           if (data && Object.keys(data).length > 0) {
             this.currentData = data;
-            console.log("成功提取中藥資料:", data);
 
             chrome.storage.sync.get(
               {
@@ -385,8 +509,6 @@ if (typeof window.chineseMedicineProcessor === "undefined") {
 
     // 清理方法
     cleanup() {
-      console.log("執行中藥處理器清理作業");
-
       if (this.currentObserver) {
         this.currentObserver.disconnect();
         this.currentObserver = null;
