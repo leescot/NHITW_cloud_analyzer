@@ -22,13 +22,51 @@ const AUTO_PROCESS_URLS = {
   IMAGE: "https://medcloud2.nhi.gov.tw/imu/IMUE1000/IMUE0130",
 };
 
-// 初始化設定
-// chrome.storage.sync.get({
-//     enableAutoPaging: true,
-//     maxPageCount: '5'
-// }, (settings) => {
-//     console.log('自動翻頁設定:', settings);
-// });
+// 添加初始化設定的函數
+function initializeDefaultSettings() {
+  const DEFAULT_SETTINGS = {
+    titleFontSize: '16',
+    contentFontSize: '14',
+    noteFontSize: '12',
+    windowWidth: '500',
+    windowHeight: '80',
+    showGenericName: false,
+    simplifyMedicineName: true,
+    copyFormat: 'nameWithDosageVertical',
+    autoProcess: true,
+    showLabUnit: false,
+    highlightAbnormalLab: true,
+    showLabReference: false,
+    labDisplayFormat: 'horizontal',
+    enableAutoPaging: true,
+    maxPageCount: '5',
+    enableLabAbbrev: true,
+    enableATC5Coloring: true,
+    showDiagnosis: false,
+    enableMedicineGrouping: true,
+    enableLabGrouping: true
+  };
+
+  return new Promise((resolve) => {
+    chrome.storage.sync.get(null, (currentSettings) => {
+      // 檢查是否有任何已存在的設定
+      if (Object.keys(currentSettings).length === 0) {
+        // 如果沒有任何設定，初始化所有默認值
+        chrome.storage.sync.set(DEFAULT_SETTINGS, () => {
+          console.log('已初始化默認設定');
+          resolve(DEFAULT_SETTINGS);
+        });
+      } else {
+        // 如果已有設定，確保所有默認值都存在
+        const updatedSettings = { ...DEFAULT_SETTINGS, ...currentSettings };
+        chrome.storage.sync.set(updatedSettings, () => {
+          console.log('已更新設定');
+          resolve(updatedSettings);
+        });
+      }
+    });
+  });
+}
 
 // 按鈕相關
 let testButton;
@@ -289,10 +327,10 @@ function checkPageReady(callback, maxAttempts = 20) {
 function initAutoProcess() {
   console.log("開始初始化自動處理...");
   checkPageReady(() => {
-    chrome.storage.sync.get({ autoProcess: false }, (settings) => {
+    // 使用新的初始化函數
+    initializeDefaultSettings().then(settings => {
       if (settings.autoProcess) {
         console.log("自動處理功能已啟用，開始監控表格載入");
-        // 等待表格載入
         waitForTables(() => {
           console.log("表格已載入，開始自動處理");
           if (window.location.href.includes("IMUE0008")) {
