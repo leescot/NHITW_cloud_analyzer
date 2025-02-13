@@ -614,6 +614,11 @@ const labProcessor = {
             return null;  // 定性檢驗不需要判斷異常值
         }
 
+        // 新增處理 [0][0] 或 [0.000][0.000] 的情況
+        if (cleanStr.match(/\[0*\.?0*\]\[0*\.?0*\]/)) {
+            return null;  // 返回 null 表示不需要進行異常值判斷
+        }
+
         return null;  // 無法解析的格式
     },
 
@@ -1063,7 +1068,21 @@ const labProcessor = {
                             }
     
                             const textElement = document.createElement('div');
-                            textElement.style.color = settings.highlightAbnormalLab && isNormal === false ? '#FF0000' : '#000000';
+                            if (settings.highlightAbnormalLab) {
+                                switch (isNormal.status) {
+                                    case 'low':
+                                        textElement.style.color = '#008000';  // 綠色
+                                        textElement.style.fontWeight = 'bold';
+                                        break;
+                                    case 'high':
+                                        textElement.style.color = '#FF0000';  // 紅色
+                                        textElement.style.fontWeight = 'bold';
+                                        break;
+                                    default:
+                                        textElement.style.color = '#000000';  // 正常值為黑色
+                                        textElement.style.fontWeight = 'normal';
+                                }
+                            }
                             textElement.textContent = displayText;
     
                             itemDiv.appendChild(textElement);
