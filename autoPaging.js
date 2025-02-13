@@ -95,7 +95,13 @@ const autoPagingHandler = {
     // 建立連續讀取按鈕
     createAutoPagingButton() {
         const button = document.createElement('button');
-        button.textContent = '連續讀取';
+        
+        // 檢查視窗寬度設定
+        chrome.storage.sync.get({ windowWidth: '500' }, (settings) => {
+            button.textContent = (settings.windowWidth === '300' || settings.windowWidth === '400') ? 
+                '連' : '連續讀取';
+        });
+
         button.style.cssText = `
             background-color: #2196F3;
             color: white;

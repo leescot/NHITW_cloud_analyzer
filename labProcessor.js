@@ -68,14 +68,19 @@ const labProcessor = {
             console.error('labGroupingHandler 未載入');
             return null;
         }
-
+    
         const shouldShow = await window.labGroupingHandler.shouldShowGroupingButton();
         if (!shouldShow) {
             return null;
         }
-
+    
+        // Get window width setting
+        const { windowWidth } = await new Promise(resolve => {
+            chrome.storage.sync.get({ windowWidth: '500' }, resolve);
+        });
+    
         const button = document.createElement('button');
-        button.textContent = '表格';
+        button.textContent = (windowWidth === '300' || windowWidth === '400') ? '表' : '表格';
         button.style.cssText = `
             background-color: #f28500;
             color: white;
@@ -92,7 +97,7 @@ const labProcessor = {
                 window.labGroupingHandler.handleGroupingDisplay(this.currentData);
             }
         };
-
+    
         return button;
     },
 
@@ -302,19 +307,20 @@ const labProcessor = {
 
     // 創建自動讀取按鈕
     async createAutoPagingButton() {
-        // 從 storage 中獲取 maxPageCount 設定
-        const { maxPageCount } = await new Promise(resolve => {
-            chrome.storage.sync.get({ maxPageCount: '5' }, resolve);
+        const { maxPageCount, windowWidth } = await new Promise(resolve => {
+            chrome.storage.sync.get({ 
+                maxPageCount: '5',
+                windowWidth: '500'
+            }, resolve);
         });
         
-        // 獲取實際的最大頁數
         const maxPage = window.nextPagingHandler?.state?.maxPage || 1;
-        
-        // 使用較小的數字
         const displayPages = Math.min(parseInt(maxPageCount), maxPage);
         
         const button = document.createElement('button');
-        button.textContent = `連續讀${displayPages}頁`;
+        button.textContent = (windowWidth === '300' || windowWidth === '400') ? 
+            '連' : 
+            `連讀${displayPages}頁`;
         button.classList.add('lab-auto-paging-button');
         button.style.cssText = `
             background-color: #2196F3;
@@ -622,15 +628,20 @@ const labProcessor = {
         return null;  // 無法解析的格式
     },
 
-    // 修改 isValueNormal 函數為 checkValueStatus
     isValueNormal(value, referenceRange, testName) {
         if (!value) return { status: 'normal' };
 
-        // 優先處理特殊檢驗項目
+        // 檢查參考值格式是否為特殊格式 [0][0] 或 [0.000][0.000]
+        if (referenceRange === null) {
+            // 如果是特殊格式，即使是特殊檢驗項目也返回 normal
+            return { status: 'normal' };
+        }
+
+        // 處理特殊檢驗項目
         const specialResult = labValueProcessor.checkSpecialNormal(testName, value);
         if (specialResult !== null) {
             return { 
-                status: specialResult ? 'normal' : 'high'  // 特殊項目只區分正常和偏高
+                status: specialResult ? 'normal' : 'high'
             };
         }
 
@@ -806,7 +817,9 @@ const labProcessor = {
     
             // 4. 創建標題
             const titleH3 = document.createElement('h3');
-            titleH3.textContent = '檢驗結果';
+            titleH3.textContent = settings.windowWidth === '300' || settings.windowWidth === '400' ? 
+                '檢驗' : 
+                '檢驗結果';
             titleH3.style.cssText = `
                 margin: 0;
                 font-size: ${settings.titleFontSize}px;

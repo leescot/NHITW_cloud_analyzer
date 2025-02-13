@@ -247,7 +247,6 @@ const nextPagingHandler = {
 
     // 創建分頁控制區域
     createPagingControls() {
-        // 先更新一次分頁資訊
         this.updatePaginationInfo();
 
         const controlsDiv = document.createElement('div');
@@ -257,52 +256,56 @@ const nextPagingHandler = {
             gap: 10px;
         `;
 
-        // 建立上一頁按鈕
-        const prevButton = document.createElement('button');
-        prevButton.textContent = '上頁';
-        const canPrev = this.hasPrevPage();
-        prevButton.style.cssText = `
-            background-color: ${canPrev ? '#2196F3' : '#ccc'};
-            color: white;
-            border: none;
-            border-radius: 4px;
-            padding: 4px 12px;
-            cursor: ${canPrev ? 'pointer' : 'not-allowed'};
-            font-size: 14px;
-        `;
-        if (canPrev) {
-            prevButton.onclick = () => this.handlePageChange(false);
-        }
+        // 檢查視窗寬度設定
+        chrome.storage.sync.get({ windowWidth: '500' }, (settings) => {
+            const isNarrow = settings.windowWidth === '300' || settings.windowWidth === '400';
 
-        // 建立下一頁按鈕
-        const nextButton = document.createElement('button');
-        nextButton.textContent = '下頁';
-        const canNext = this.hasNextPage();
-        nextButton.style.cssText = `
-            background-color: ${canNext ? '#2196F3' : '#ccc'};
-            color: white;
-            border: none;
-            border-radius: 4px;
-            padding: 4px 12px;
-            cursor: ${canNext ? 'pointer' : 'not-allowed'};
-            font-size: 14px;
-        `;
-        if (canNext) {
-            nextButton.onclick = () => this.handlePageChange(true);
-        }
+            // 建立上一頁按鈕
+            const prevButton = document.createElement('button');
+            prevButton.textContent = isNarrow ? '上' : '上頁';
+            const canPrev = this.hasPrevPage();
+            prevButton.style.cssText = `
+                background-color: ${canPrev ? '#2196F3' : '#ccc'};
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 4px 12px;
+                cursor: ${canPrev ? 'pointer' : 'not-allowed'};
+                font-size: 14px;
+            `;
+            if (canPrev) {
+                prevButton.onclick = () => this.handlePageChange(false);
+            }
 
-        // 建立頁碼顯示
-        const pageInfo = document.createElement('span');
-        pageInfo.style.cssText = `
-            color: #666;
-            font-size: 14px;
-        `;
-        pageInfo.textContent = `(第${this.state.currentPage}/${this.state.maxPage}頁)`;
+            // 建立下一頁按鈕
+            const nextButton = document.createElement('button');
+            nextButton.textContent = isNarrow ? '下' : '下頁';
+            const canNext = this.hasNextPage();
+            nextButton.style.cssText = `
+                background-color: ${canNext ? '#2196F3' : '#ccc'};
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 4px 12px;
+                cursor: ${canNext ? 'pointer' : 'not-allowed'};
+                font-size: 14px;
+            `;
+            if (canNext) {
+                nextButton.onclick = () => this.handlePageChange(true);
+            }
 
-        // 組合控制元件
-        controlsDiv.appendChild(prevButton);
-        controlsDiv.appendChild(nextButton);
-        controlsDiv.appendChild(pageInfo);
+            controlsDiv.appendChild(prevButton);
+            controlsDiv.appendChild(nextButton);
+            
+            // 頁碼顯示
+            const pageInfo = document.createElement('span');
+            pageInfo.style.cssText = `
+                color: #666;
+                font-size: 14px;
+            `;
+            pageInfo.textContent = `(${this.state.currentPage}/${this.state.maxPage}頁)`;
+            controlsDiv.appendChild(pageInfo);
+        });
 
         return controlsDiv;
     },

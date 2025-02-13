@@ -76,8 +76,12 @@ const medicineProcessor = {
             return null;
         }
 
+        const { windowWidth } = await new Promise(resolve => {
+            chrome.storage.sync.get({ windowWidth: '500' }, resolve);
+        });
+
         const button = document.createElement('button');
-        button.textContent = '表格';
+        button.textContent = (windowWidth === '300' || windowWidth === '400') ? '表' : '表格';
         button.style.cssText = `
             background-color: #f28500;
             color: white;
@@ -369,10 +373,11 @@ const medicineProcessor = {
 
             // 左側區域：標題
             const titleH3 = document.createElement('h3');
-            titleH3.textContent = '西醫用藥';
+            titleH3.textContent = (userSettings.windowWidth === '300' || userSettings.windowWidth === '400') ? 
+                '西醫' : '西醫用藥';
             titleH3.style.cssText = `
                 margin: 0;
-                font-size: ${settings.titleFontSize}px;
+                font-size: ${userSettings.titleFontSize}px;
                 padding: 0;
                 font-weight: bold;
             `;
