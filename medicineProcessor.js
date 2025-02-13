@@ -239,7 +239,7 @@ const medicineProcessor = {
     formatDiagnosis(date, source, diagnosis, diagnosisCode) {
         const formattedSource = source.split('門診')[0];
         const formattedDiagnosis = diagnosis && diagnosisCode ? 
-            `(${diagnosis}${diagnosisCode})` : '';
+            `(${diagnosisCode} ${diagnosis})` : '';
         return `${date} ${formattedSource} ${formattedDiagnosis}`;
     },
 
@@ -529,7 +529,7 @@ const medicineProcessor = {
 
                 if (settings.showDiagnosis && group.diagnosis) {
                     const diagnosisContent = group.diagnosisCode ? 
-                        `${group.diagnosis} (${group.diagnosisCode})` : 
+                        `${group.diagnosisCode} ${group.diagnosis}` : 
                         group.diagnosis;
                     diagnosisRow.textContent = diagnosisContent;
                 }
@@ -719,11 +719,27 @@ const medicineProcessor = {
             const specMatch = specText.match(/(\d+)/);
             const specNumber = specMatch ? specMatch[1] + '#' : '';
 
+            // 處理診斷資料
+            let diagnosisText = '';
+            let diagnosisCode = '';
+            if (rawData.diagnosis) {
+                // 更新正則表達式以匹配 ICD-10 的各種格式
+                const diagMatch = rawData.diagnosis.match(/([A-Z]\d+(?:\.\d+)?(?:[A-Z]|X[A-Z])?)\s*$/);
+                if (diagMatch) {
+                    diagnosisCode = diagMatch[1];
+                    // 移除最後的診斷碼，取得診斷文字
+                    diagnosisText = rawData.diagnosis.replace(diagMatch[0], '').trim();
+                } else {
+                    // 如果無法匹配，保留原始文字
+                    diagnosisText = rawData.diagnosis;
+                }
+            }
+
             // 整理並返回資料
             return {
                 date: rawData.date,
                 source: rawData.source.split(/[\d\n]/)[0], // 移除數字和換行
-                diagnosis: rawData.diagnosis ? rawData.diagnosis.split('\n') : ['', ''],
+                diagnosis: [diagnosisText, diagnosisCode], // 改為分開儲存診斷文字和代碼
                 medicineName: rawData.medicineName,
                 ingredient: rawData.ingredient,
                 dosage: rawData.dosage,
@@ -735,11 +751,14 @@ const medicineProcessor = {
         }).filter(Boolean); // 移除空值
 
         // 依照日期分組
+        // 依照日期、來源和主診斷分組
         const groupedData = medicineData.reduce((groups, med) => {
-            const key = `${med.date}_${med.medicineName}_${med.dosage}`; // 創建唯一鍵
+            // 創建包含日期、來源和診斷的唯一鍵
+            const groupKey = `${med.date}_${med.source}_${med.diagnosis[0]}_${med.diagnosis[1]}`;
+            const medicineKey = `${med.date}_${med.medicineName}_${med.dosage}`; // 藥品唯一鍵
             
-            if (!groups[med.date]) {
-                groups[med.date] = {
+            if (!groups[groupKey]) {
+                groups[groupKey] = {
                     date: med.date,
                     source: med.source,
                     diagnosis: med.diagnosis[0] || '',
@@ -750,8 +769,8 @@ const medicineProcessor = {
             }
     
             // 檢查是否已經處理過相同的藥品
-            if (!groups[med.date].processedKeys.has(key)) {
-                groups[med.date].medicines.push({
+            if (!groups[groupKey].processedKeys.has(medicineKey)) {
+                groups[groupKey].medicines.push({
                     name: med.medicineName,
                     spec: med.spec,
                     dosage: med.dosage,
@@ -760,7 +779,7 @@ const medicineProcessor = {
                     ingredient: med.ingredient,
                     atc5Code: med.atc5Code
                 });
-                groups[med.date].processedKeys.add(key);
+                groups[groupKey].processedKeys.add(medicineKey);
             }
     
             return groups;
