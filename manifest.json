@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "健保雲端藥歷分析器2.0",
-    "version": "1.0.41",
+    "version": "1.0.42",
     "description": "分析並整理台灣健保雲端資料，提高查詢資料醫療人員的工作效率！",
     "icons": {
         "16": "icon16.png",

@@ -1,16 +1,69 @@
-// 確保在全域範圍聲明
+// Move these constants outside the if block to make them accessible
+const CHINESE_MEDICINE_URL = 'https://medcloud2.nhi.gov.tw/imu/IMUE1000/IMUE0090';
+// 
+// / 確保在全域範圍聲明
 if (typeof window.chineseMedicineProcessor === "undefined") {
   console.log("正在載入中藥處理器...");
 
   window.chineseMedicineProcessor = {
-    // 儲存目前的數據
+    // 現有的屬性
     currentData: null,
     currentObserver: null,
-
-    // 分頁相關屬性
     paginationState: {
       currentPage: 1,
       maxPage: 1,
+    },
+
+    // 新增 isProcessing 狀態追蹤
+    state: {
+      isProcessing: false
+    },
+
+    // 新增自動處理方法
+    async autoProcess() {
+      console.log('開始自動處理中藥資料');
+      
+      try {
+        const tables = this.inspectTables();
+        if (tables && tables.length > 0) {
+          const data = this.extractChineseMedicineData(tables[0]);
+          if (data) {
+            this.displayResults(data);
+            this.listenToPageChanges();
+            return true;
+          }
+        }
+        return false;
+      } catch (error) {
+        console.error('自動處理中藥資料時發生錯誤:', error);
+        return false;
+      }
+    },
+
+    // Modify waitForTables method to handle table loading
+    waitForTables(callback, maxAttempts = 10) {
+      let attempts = 0;
+      const checkTables = () => {
+        const tables = this.inspectTables();
+        if (tables && tables.length > 0 && tables[0].querySelector("tbody tr td")) {
+          console.log('找到已載入資料的中藥表格，開始處理');
+          setTimeout(callback, 500);
+        } else if (attempts < maxAttempts) {
+          attempts++;
+          console.log(`等待中藥表格載入... 嘗試次數: ${attempts}`);
+          setTimeout(checkTables, 1000);
+        } else {
+          console.log('等待中藥表格載入超時');
+        }
+      };
+      checkTables();
+    },
+
+    // 新增檢查頁面 URL 的方法
+    isChineseMedicinePage() {
+      const currentUrl = window.location.href;
+      return currentUrl.includes(CHINESE_MEDICINE_URL) || 
+             currentUrl.endsWith('IMUE0090');
     },
 
     // 檢查表格方法
@@ -464,62 +517,107 @@ if (typeof window.chineseMedicineProcessor === "undefined") {
 
     // 初始化方法
     async initialize() {
-      console.log("開始初始化中藥處理器...");
-
-      try {
-        this.updatePaginationInfo();
-
-        const tables = this.inspectTables();
-        if (!tables || tables.length === 0) {
-          console.log("未找到任何符合的表格");
-          return false;
-        }
-
-        let hasProcessedTable = false;
-        for (const table of tables) {
-          if (!table) continue;
-
-          const data = this.extractChineseMedicineData(table);
-          if (data && Object.keys(data).length > 0) {
-            this.currentData = data;
-
-            chrome.storage.sync.get(
-              {
-                titleFontSize: "16",
-                contentFontSize: "14",
-                windowWidth: "500",
-                windowHeight: "80",
-              },
-              (settings) => {
-                this.displayResults(data, settings);
-              }
-            );
-
-            hasProcessedTable = true;
-            break;
-          }
-        }
-
-        return hasProcessedTable;
-      } catch (error) {
-        console.error("中藥處理器初始化過程發生錯誤:", error);
+      console.log('開始初始化中藥處理器');
+      
+      if (!this.isChineseMedicinePage()) {
+        console.log('非中藥頁面，不進行初始化');
         return false;
       }
+
+      this.cleanup();
+      this.state.isProcessing = true;
+
+      return new Promise((resolve) => {
+        this.waitForTables(async () => {
+          try {
+            const result = await this.autoProcess();
+            if (result) {
+              console.log('中藥處理器初始化成功');
+              resolve(true);
+            } else {
+              console.log('中藥處理器初始化失敗：無資料');
+              resolve(false);
+            }
+          } catch (error) {
+            console.error('中藥處理器初始化失敗:', error);
+            this.state.isProcessing = false;
+            resolve(false);
+          }
+        });
+      });
     },
 
     // 清理方法
     cleanup() {
+      console.log('執行中藥處理器清理作業');
+      
       if (this.currentObserver) {
         this.currentObserver.disconnect();
         this.currentObserver = null;
+        console.log('已清理觀察器');
       }
 
-      const existingDiv = document.getElementById("chinese-medicine-list");
+      const existingDiv = document.getElementById('chinese-medicine-list');
       if (existingDiv) {
         existingDiv.remove();
+        console.log('已移除現有顯示視窗');
       }
 
       this.currentData = null;
+      this.state.isProcessing = false;
+    },
+
+    // 新增監聽頁面變化的方法
+    listenToPageChanges() {
+      if (this.currentObserver) {
+        this.currentObserver.disconnect();
+      }
+
+      const tableBody = document.querySelector('table tbody');
+      if (tableBody) {
+        this.currentObserver = new MutationObserver((mutations) => {
+          const table = this.inspectTables()[0];
+          if (table) {
+            const newData = this.extractChineseMedicineData(table);
+            if (newData && JSON.stringify(newData) !== JSON.stringify(this.currentData)) {
+              console.log('表格內容有變化，更新顯示');
+              this.currentData = newData;
+              this.displayResults(newData);
+            }
+          }
+        });
+
+        this.currentObserver.observe(tableBody, {
+          childList: true,
+          subtree: true
+        });
+      }
     },
   };
 }
+
+
+// 註冊頁面載入和離開的處理
+document.addEventListener('DOMContentLoaded', () => {
+  if (window.chineseMedicineProcessor.isChineseMedicinePage()) {
+    // 檢查自動處理設定
+    chrome.storage.sync.get({ autoProcess: true }, (settings) => {
+      if (settings.autoProcess) {
+        console.log('自動處理設定已啟用，開始初始化中藥處理器');
+        window.chineseMedicineProcessor.initialize();
+      } else {
+        console.log('自動處理設定未啟用');
+      }
+    });
+  }
+});
+
+// 處理頁面離開
+window.addEventListener('beforeunload', () => {
+  if (window.chineseMedicineProcessor.isChineseMedicinePage()) {
+    window.chineseMedicineProcessor.cleanup();
+  }
+});
+
+// 觸發準備就緒事件
+document.dispatchEvent(new Event('chineseMedicineProcessorReady'));

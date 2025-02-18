@@ -163,87 +163,101 @@ function shouldAutoProcess() {
 
 // 等待表格載入
 function waitForTables(callback, maxAttempts = 10) {
-  waitForMedicineProcessor((medicineProcessor) => {
-    let attempts = 0;
+  let attempts = 0;
+  const currentUrl = window.location.href;
+  
+  const checkTables = () => {
+    const tables = document.getElementsByTagName("table");
+    let hasDataTable = false;
 
-    const checkTables = () => {
-      const tables = document.getElementsByTagName("table");
-      const currentUrl = window.location.href;
+    // 檢查是否有任何表格
+    if (!tables || tables.length === 0) {
+      console.log("未找到任何表格");
+      scheduleNextCheck();
+      return;
+    }
 
-      let hasDataTable = false;
+    // 根據不同頁面類型檢查表格內容
+    if (currentUrl === AUTO_PROCESS_URLS.MEDICINE) {
+      // 西藥頁面檢查
+      hasDataTable = Array.from(tables).some(table => {
+        const headerText = table.innerText.toLowerCase();
+        return (headerText.includes("藥品") || 
+                headerText.includes("用藥") || 
+                headerText.includes("medicine")) &&
+               table.querySelector("tbody tr td") !== null;
+      });
+    } 
+    else if (currentUrl === AUTO_PROCESS_URLS.CHINESE_MEDICINE) {
+      // 中藥頁面檢查
+      hasDataTable = Array.from(tables).some(table => {
+        const headers = Array.from(table.querySelectorAll("th"))
+          .map(th => th.textContent.trim());
+        return headers.includes("方名") && 
+               headers.includes("就醫日期") && 
+               table.querySelector("tbody tr td") !== null;
+      });
+    }
+    else if (currentUrl === AUTO_PROCESS_URLS.LAB) {
+      // 檢驗報告頁面檢查
+      hasDataTable = Array.from(tables).some(table => {
+        const headers = Array.from(table.querySelectorAll("th"))
+          .map(th => th.textContent.trim().toLowerCase());
+        return headers.some(header => 
+          header.includes("檢驗") || 
+          header.includes("醫令") || 
+          header.includes("結果")
+        ) && table.querySelector("tbody tr td") !== null;
+      });
+    }
+    else if (currentUrl === AUTO_PROCESS_URLS.IMAGE) {
+      // 影像報告頁面檢查
+      hasDataTable = Array.from(tables).some(table => {
+        const headers = Array.from(table.querySelectorAll("th"))
+          .map(th => th.textContent.trim());
+        const requiredHeaders = ["項次", "檢驗日期", "醫令名稱"];
+        return requiredHeaders.every(header => headers.includes(header)) && 
+               table.querySelector("tbody tr td") !== null;
+      });
+    }
 
-      if (currentUrl === AUTO_PROCESS_URLS.MEDICINE) {
-        hasDataTable = Array.from(tables).some((table) => {
-          const headerText = table.innerText.toLowerCase();
-          return (
-            (headerText.includes("藥品") ||
-              headerText.includes("用藥") ||
-              headerText.includes("medicine")) &&
-            table.querySelector("tbody tr td") !== null
-          );
-        });
-      } else if (currentUrl === AUTO_PROCESS_URLS.LAB) {
-        // 修改檢驗報告的檢查邏輯
-        hasDataTable = Array.from(tables).some((table) => {
-          // 先檢查是否有資料列
-          const hasRows = table.querySelector("tbody tr td") !== null;
-          if (!hasRows) return false;
+    if (hasDataTable) {
+      console.log("找到已載入資料的表格，開始處理");
+      setTimeout(callback, 500);
+    } else {
+      scheduleNextCheck();
+    }
+  };
 
-          // 檢查表頭是否包含必要欄位
-          const headers = Array.from(table.querySelectorAll("th")).map((th) =>
-            th.textContent.trim().toLowerCase()
-          );
+  const scheduleNextCheck = () => {
+    if (attempts < maxAttempts) {
+      attempts++;
+      console.log(`等待表格載入... 嘗試次數: ${attempts}/${maxAttempts}`);
+      setTimeout(checkTables, 1000);
+    } else {
+      console.log("等待表格載入超時");
+    }
+  };
 
-          // 放寬檢查條件，只要包含其中一個關鍵字即可
-          return headers.some(
-            (header) =>
-              header.includes("檢驗") ||
-              header.includes("醫令") ||
-              header.includes("結果")
-          );
-        });
-      } else if (currentUrl === AUTO_PROCESS_URLS.IMAGE) {
-        // 為影像頁面添加特殊處理
-        hasDataTable = Array.from(tables).some((table) => {
-          // 檢查表頭是否包含必要欄位
-          const headers = Array.from(table.querySelectorAll("th")).map((th) =>
-            th.textContent.trim()
-          );
-          const requiredHeaders = ["項次", "檢驗日期", "醫令名稱"];
-          const hasRequiredHeaders = requiredHeaders.every((header) =>
-            headers.includes(header)
-          );
-          // 確認有數據行
-          return (
-            hasRequiredHeaders && table.querySelector("tbody tr td") !== null
-          );
-        });
-      }
-
-      if (tables.length > 0 && hasDataTable) {
-        console.log("找到已載入資料的表格，開始處理");
-        setTimeout(callback, 500);
-      } else if (attempts < maxAttempts) {
-        attempts++;
-        console.log(
-          `等待表格載入... 嘗試次數: ${attempts}，目前URL: ${currentUrl}`
-        );
-        setTimeout(checkTables, 1000);
-      } else {
-        console.log("等待表格載入超時");
-      }
-    };
-
-    checkTables();
-  });
+  // 開始檢查
+  checkTables();
 }
+
 
 // 修改自動處理頁面函數
 function autoProcessPage() {
   console.log("開始自動處理頁面");
   const currentUrl = window.location.href;
 
-  if (currentUrl === AUTO_PROCESS_URLS.LAB) {
+  if (currentUrl === AUTO_PROCESS_URLS.CHINESE_MEDICINE) {
+    console.log("檢測到中藥頁面，準備初始化");
+    if (window.chineseMedicineProcessor) {
+      waitForTables(() => {
+        console.log("中藥表格已載入，開始處理");
+        window.chineseMedicineProcessor.initialize();
+      });
+    }
+  } else if (currentUrl === AUTO_PROCESS_URLS.LAB) {
     console.log("檢測到檢驗報告頁面，準備初始化");
     if (window.labProcessor) {
       waitForTables(() => {
@@ -256,14 +270,7 @@ function autoProcessPage() {
     if (window.imageProcessor) {
       waitForTables(() => {
         console.log("影像報告表格已載入，開始處理");
-        window.imageProcessor.handleButtonClick();
-      });
-    }
-  } else if (currentUrl === AUTO_PROCESS_URLS.CHINESE_MEDICINE) {
-    console.log("檢測到中藥頁面，等待表格載入");
-    if (window.chineseMedicineProcessor) {
-      waitForTables(() => {
-        window.chineseMedicineProcessor.initialize();
+        window.imageProcessor.initialize();
       });
     }
   } else if (currentUrl === AUTO_PROCESS_URLS.MEDICINE) {
@@ -291,8 +298,7 @@ function checkPageReady(callback, maxAttempts = 20) {
       if (currentUrl === AUTO_PROCESS_URLS.LAB) {
         if (window.labProcessor && window.labAbbreviationManager) {
           try {
-            const abbrevResult =
-              await window.labAbbreviationManager.loadAbbreviations();
+            const abbrevResult = await window.labAbbreviationManager.loadAbbreviations();
             console.log("縮寫初始化結果:", abbrevResult);
             callback();
           } catch (error) {
@@ -308,7 +314,13 @@ function checkPageReady(callback, maxAttempts = 20) {
         } else {
           setTimeout(check, 500);
         }
-      } else {
+      } else if (currentUrl === AUTO_PROCESS_URLS.CHINESE_MEDICINE) {
+        if (window.chineseMedicineProcessor) {
+          callback();
+        } else {
+          setTimeout(check, 500);
+        }
+      } else if (currentUrl === AUTO_PROCESS_URLS.MEDICINE) {
         if (window.medicineProcessor) {
           callback();
         } else {
@@ -327,18 +339,20 @@ function checkPageReady(callback, maxAttempts = 20) {
 function initAutoProcess() {
   console.log("開始初始化自動處理...");
   checkPageReady(() => {
-    // 使用新的初始化函數
     initializeDefaultSettings().then(settings => {
       if (settings.autoProcess) {
         console.log("自動處理功能已啟用，開始監控表格載入");
         waitForTables(() => {
           console.log("表格已載入，開始自動處理");
-          if (window.location.href.includes("IMUE0008")) {
+          const currentUrl = window.location.href;
+          if (currentUrl === AUTO_PROCESS_URLS.MEDICINE) {
             window.medicineProcessor.initialize();
-          } else if (window.location.href.includes("IMUE0060")) {
+          } else if (currentUrl === AUTO_PROCESS_URLS.LAB) {
             window.labProcessor.initialize();
-          } else if (window.location.href.includes("IMUE0130")) {
+          } else if (currentUrl === AUTO_PROCESS_URLS.IMAGE) {
             window.imageProcessor.initialize();
+          } else if (currentUrl === AUTO_PROCESS_URLS.CHINESE_MEDICINE) {
+            window.chineseMedicineProcessor.initialize();
           }
         });
       } else {
@@ -351,15 +365,14 @@ function initAutoProcess() {
 // 初始化按鈕
 function initButtons() {
   console.log("初始化所有按鈕...");
-
-  // 確保主按鈕存在
   createMainButton();
 
   const currentUrl = window.location.href;
   console.log("當前URL:", currentUrl);
 
-  if (currentUrl.includes("IMUE0008") || currentUrl.includes("IMUE0060")) {
-    // 等待表格和藥品處理器都準備好
+  if (currentUrl.includes("IMUE0008") || 
+      currentUrl.includes("IMUE0060") || 
+      currentUrl.includes("IMUE0090")) {  // Add Chinese medicine URL
     const waitForTableAndInit = () => {
       const tables = document.getElementsByTagName("table");
       const hasDataTable = Array.from(tables).some(
@@ -370,7 +383,7 @@ function initButtons() {
         console.log("表格已載入，初始化自動翻頁");
         setTimeout(() => {
           window.autoPagingHandler.initialize();
-        }, 1000); // 延遲初始化，確保其他組件已準備就緒
+        }, 1000);
       } else {
         console.log("等待表格載入...");
         setTimeout(waitForTableAndInit, 500);
@@ -380,7 +393,6 @@ function initButtons() {
     waitForTableAndInit();
   }
 
-  // 初始化自動處理
   initAutoProcess();
 }
 
@@ -390,12 +402,17 @@ new MutationObserver(() => {
   const url = location.href;
   if (url !== lastUrl) {
     lastUrl = url;
-    if (
-      url.includes("IMUE0008") ||
-      url.includes("IMUE0060") ||
-      url.includes("IMUE0130")
-    ) {
+    if (url.includes("IMUE0008") ||
+        url.includes("IMUE0060") ||
+        url.includes("IMUE0130") ||
+        url.includes("IMUE0090")) {  // Add Chinese medicine URL
       console.log("URL 變更，重新初始化按鈕");
+
+      // Clean up existing data
+      if (window.chineseMedicineProcessor) {
+        window.chineseMedicineProcessor.cleanup();
+        console.log("已清理中藥處理器");
+      }
 
       // 清理藥物資料
       if (window.autoPagingHandler) {
